@@ -51,7 +51,7 @@ label{display:block;color:var(--muted);font-size:12px;margin-bottom:7px}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .form-field{min-width:0}
-.targets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.targets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .target{background:var(--panel2);border-radius:10px;padding:13px}
 .target-name{font-size:12px;color:var(--muted)}
 .target-price{font-size:17px;font-weight:700;margin-top:8px;overflow-wrap:anywhere}
@@ -82,7 +82,6 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
 @media(max-width:450px){
  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
  .metric{padding:12px}
- .targets{grid-template-columns:repeat(2,minmax(0,1fr))}
  .form-grid{grid-template-columns:1fr}
  .search-row{flex-direction:column}
  h1{font-size:17px}
@@ -134,7 +133,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
       <div class="metric">
         <div class="metric-label">24H VOLUME</div>
         <div class="metric-value" id="volume">—</div>
-        <div class="metric-note" id="volumeSplit">Buy / sell volume</div>
+        <div class="metric-note" id="volumeSplit">Buy/sell USD volume not supplied by this endpoint</div>
       </div>
       <div class="metric">
         <div class="metric-label">FDV / MARKET CAP</div>
@@ -145,7 +144,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
   </section>
 
   <section class="panel">
-    <h2>03 / BUY & SELL ACTIVITY</h2>
+    <h2>03 / BUY &amp; SELL ACTIVITY</h2>
     <div class="grid">
       <div class="metric">
         <div class="metric-label">BUYS · 5 MIN</div>
@@ -182,9 +181,62 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
     </div>
   </section>
 
+  <section class="panel" id="signalPanel">
+    <h2>04 / CRIMSON SIGNAL — TOKEN ANALYSIS</h2>
+    <div class="two-col">
+      <div class="metric">
+        <div class="metric-label">SIGNAL SCORE</div>
+        <div class="metric-value" id="signalScore">— / 100</div>
+        <div class="metric-note" id="signalLabel">Waiting for market data</div>
+        <div style="height:8px;background:#30303a;border-radius:8px;margin-top:12px;overflow:hidden">
+          <div id="signalBar" style="height:100%;width:0%;background:#a1a1aa;transition:width .3s"></div>
+        </div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">BUY / SELL PRESSURE · 5 MIN</div>
+        <div class="metric-value" id="buyPressure">—</div>
+        <div class="metric-note" id="pressureNote">Waiting for transactions</div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:14px">
+      <div class="metric">
+        <div class="metric-label">BUY RATIO · 5 MIN</div>
+        <div class="metric-value" id="buyRatio5">—</div>
+        <div class="metric-note">Buys ÷ all transactions</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">BUY RATIO · 1 HOUR</div>
+        <div class="metric-value" id="buyRatio1h">—</div>
+        <div class="metric-note">Buys ÷ all transactions</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">VOLUME / LIQUIDITY</div>
+        <div class="metric-value" id="volumeLiquidity">—</div>
+        <div class="metric-note">24h volume ÷ pool liquidity</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">RISK CHECK</div>
+        <div class="metric-value" id="riskLabel">—</div>
+        <div class="metric-note" id="riskNote">Waiting for market data</div>
+      </div>
+    </div>
+
+    <h2 style="margin-top:20px">SIGNAL BREAKDOWN</h2>
+    <div id="signalReasons" class="empty">
+      Scan a token to analyze its buying pressure, momentum and liquidity.
+    </div>
+
+    <div class="notice" style="margin-top:14px">
+      This is a heuristic market-activity score, not a prediction or guarantee of safety.
+      Unique wallets, holder distribution, contract risks and separate buy/sell USD volumes
+      are not yet connected. Missing checks are not proof of safety.
+    </div>
+  </section>
+
   <section class="two-col">
     <div class="panel">
-      <h2>04 / YOUR POSITION</h2>
+      <h2>05 / YOUR POSITION</h2>
       <div class="form-grid">
         <div class="form-field">
           <label for="investment">Investment amount (USD)</label>
@@ -216,7 +268,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
           <div class="metric-value" id="positionValue">—</div>
         </div>
         <div class="metric">
-          <div class="metric-label">ESTIMATED P&L</div>
+          <div class="metric-label">ESTIMATED P&amp;L</div>
           <div class="metric-value" id="pnl">—</div>
           <div class="metric-note" id="returnPct">Enter investment and entry price</div>
         </div>
@@ -227,7 +279,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
     </div>
 
     <div class="panel">
-      <h2>05 / PROFIT TARGETS</h2>
+      <h2>06 / PROFIT TARGETS</h2>
       <div class="targets" id="targets"></div>
       <div class="notice" style="margin-top:15px">
         Targets are calculations, not predictions. Estimated values exclude exit costs,
@@ -239,13 +291,11 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
 
   <section class="two-col">
     <div class="panel">
-      <h2>06 / AVAILABLE POOLS</h2>
-      <div id="pools" class="empty">
-        Scan a token to list its discovered pools.
-      </div>
+      <h2>07 / AVAILABLE POOLS</h2>
+      <div id="pools" class="empty">Scan a token to list its discovered pools.</div>
     </div>
     <div class="panel">
-      <h2>07 / ALERT CENTER</h2>
+      <h2>08 / ALERT CENTER</h2>
       <div class="form-grid">
         <div>
           <label for="liquidityDrop">Liquidity-drop alert (%)</label>
@@ -265,7 +315,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
   </section>
 
   <section class="panel">
-    <h2>08 / DATA FRESHNESS</h2>
+    <h2>09 / DATA FRESHNESS</h2>
     <div class="table-wrap">
       <table>
         <thead><tr><th>DATA SOURCE</th><th>STATUS</th><th>LAST UPDATE</th></tr></thead>
@@ -286,6 +336,8 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
 </main>
 
 <script>
+"use strict";
+
 const $ = id => document.getElementById(id);
 
 let mint = "";
@@ -296,21 +348,23 @@ let lastLiquidity = null;
 let lastAlertMultiple = 0;
 let alerts = [];
 let alertKeys = new Set();
-let lastUpdateTime = null;
 
 const money = n => Number.isFinite(n)
-  ? n.toLocaleString("en-US", {style:"currency",currency:"USD",
-      maximumFractionDigits:n < 0.01 ? 8 : 2})
-  : "—";
-
-const compact = n => Number.isFinite(n)
-  ? new Intl.NumberFormat("en-US", {notation:"compact",
-      maximumFractionDigits:2}).format(n)
+  ? n.toLocaleString("en-US", {
+      style:"currency", currency:"USD",
+      maximumFractionDigits:n < 0.01 ? 8 : 2
+    })
   : "—";
 
 const number = n => Number.isFinite(n)
-  ? n.toLocaleString("en-US",{maximumFractionDigits:2})
+  ? n.toLocaleString("en-US", {maximumFractionDigits:2})
   : "—";
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  }[c]));
+}
 
 function addAlert(message, key, tone="amber") {
   if (alertKeys.has(key)) return;
@@ -329,17 +383,11 @@ function renderAlerts() {
     : '<div class="empty">No alerts yet.</div>';
 }
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, c => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-  }[c]));
-}
-
 function getBuySell(pool, period) {
   const t = pool.txns && pool.txns[period];
   return {
-    buys: Number(t?.buys ?? 0),
-    sells: Number(t?.sells ?? 0)
+    buys:Number(t?.buys ?? 0),
+    sells:Number(t?.sells ?? 0)
   };
 }
 
@@ -353,9 +401,11 @@ function renderPools(pools) {
   const wrap = document.createElement("div");
   wrap.className = "pool-list";
 
-  pools.slice(0,12).forEach((pool,index) => {
+  pools.slice(0,12).forEach(pool => {
     const div = document.createElement("div");
-    div.className = "pool" + (pool.pairAddress === selectedPool?.pairAddress ? " selected" : "");
+    div.className = "pool" +
+      (pool.pairAddress === selectedPool?.pairAddress ? " selected" : "");
+
     const base = pool.baseToken?.symbol || "TOKEN";
     const quote = pool.quoteToken?.symbol || "QUOTE";
     const dex = pool.dexId || "DEX";
@@ -369,7 +419,9 @@ function renderPools(pools) {
 
     const btn = document.createElement("button");
     btn.className = "small-btn";
-    btn.textContent = pool.pairAddress === selectedPool?.pairAddress ? "Selected" : "Use pool";
+    btn.textContent =
+      pool.pairAddress === selectedPool?.pairAddress ? "Selected" : "Use pool";
+
     btn.onclick = () => {
       selectedPool = pool;
       lastLiquidity = null;
@@ -382,11 +434,215 @@ function renderPools(pools) {
     div.append(info,btn);
     wrap.append(div);
   });
+
   $("pools").append(wrap);
+}
+
+/*
+  CRIMSON SIGNAL MODEL
+
+  This is a heuristic activity score using fields returned by the selected
+  DEX Screener pool. It is NOT a probability of profit or a safety audit.
+  Transaction counts do not identify unique wallets.
+*/
+function analyzeToken(pool) {
+  const m5 = getBuySell(pool,"m5");
+  const h1 = getBuySell(pool,"h1");
+
+  const priceChange = Number(pool.priceChange?.h24);
+  const liquidity = Number(pool.liquidity?.usd);
+  const volume = Number(pool.volume?.h24);
+
+  const total5 = m5.buys + m5.sells;
+  const total1h = h1.buys + h1.sells;
+
+  const ratio5 = total5 > 0 ? m5.buys / total5 : null;
+  const ratio1h = total1h > 0 ? h1.buys / total1h : null;
+  const volumeLiquidity =
+    liquidity > 0 && Number.isFinite(volume) ? volume / liquidity : null;
+
+  let score = 0;
+  const reasons = [];
+  const risks = [];
+
+  // Buying pressure: up to 30 points.
+  if (ratio5 !== null && ratio1h !== null) {
+    score += ratio5 * 15 + ratio1h * 15;
+
+    if (ratio5 >= 0.60 && ratio1h >= 0.55) {
+      reasons.push(["positive",
+        "Buying pressure is strong across both transaction windows."]);
+    } else if (ratio5 < 0.40 && ratio1h < 0.45) {
+      reasons.push(["negative",
+        "Selling pressure: sells dominate both measured windows."]);
+      risks.push("Sells dominate recent transaction counts.");
+    } else {
+      reasons.push(["neutral",
+        "Buying pressure is mixed or not strong enough to confirm a trend."]);
+    }
+  } else {
+    reasons.push(["neutral",
+      "Insufficient transaction data to score buying pressure reliably."]);
+  }
+
+  // 24-hour price momentum: up to 25 points.
+  if (Number.isFinite(priceChange)) {
+    score += Math.max(0,Math.min(25,12.5 + priceChange * 0.5));
+
+    if (priceChange >= 10) {
+      reasons.push(["positive",
+        `Price is up ${priceChange.toFixed(2)}% over 24 hours. Check for a late entry after a sharp pump.`]);
+    } else if (priceChange < -10) {
+      reasons.push(["negative",
+        `Price is down ${Math.abs(priceChange).toFixed(2)}% over 24 hours.`]);
+      risks.push("Significant negative 24-hour price change.");
+    } else {
+      reasons.push(["neutral",
+        `24-hour price change: ${priceChange.toFixed(2)}%.`]);
+    }
+  } else {
+    reasons.push(["neutral","24-hour price momentum is unavailable."]);
+  }
+
+  // Liquidity: up to 25 points.
+  if (Number.isFinite(liquidity) && liquidity > 0) {
+    if (liquidity >= 100000) score += 25;
+    else if (liquidity >= 50000) score += 22;
+    else if (liquidity >= 20000) score += 17;
+    else if (liquidity >= 10000) score += 12;
+    else if (liquidity >= 5000) score += 6;
+    else score += 2;
+
+    if (liquidity < 10000) {
+      risks.push("Low pool liquidity: trades may cause substantial slippage.");
+      reasons.push(["negative",`Pool liquidity is only ${money(liquidity)}.`]);
+    } else {
+      reasons.push(["positive",
+        `Pool liquidity is ${money(liquidity)}. This does not prove liquidity is locked or safe.`]);
+    }
+  } else {
+    risks.push("Liquidity data is missing or zero.");
+    reasons.push(["negative","Liquidity could not be verified."]);
+  }
+
+  // Trading activity and volume/liquidity: up to 20 points.
+  if (total5 > 0 && total1h > 0) {
+    score += 5;
+    reasons.push(["positive",
+      `Recent activity: ${total5} transactions in 5 minutes and ${total1h} in 1 hour.`]);
+  } else {
+    reasons.push(["neutral",
+      "Little or no transaction activity is reported in one or both windows."]);
+  }
+
+  if (Number.isFinite(volume) && volume > 0 && volumeLiquidity !== null) {
+    if (volumeLiquidity >= 1 && volumeLiquidity <= 10) {
+      score += 15;
+      reasons.push(["positive",
+        `24-hour volume is ${volumeLiquidity.toFixed(2)}× pool liquidity.`]);
+    } else if (volumeLiquidity > 10) {
+      score += 8;
+      risks.push("Extremely high turnover relative to liquidity; check volatility and rapid exits.");
+      reasons.push(["negative",
+        "Volume is extremely high relative to liquidity and may reflect unstable trading."]);
+    } else {
+      score += 5;
+      reasons.push(["neutral",
+        "Volume is low relative to liquidity; strong demand has not been established by this measure."]);
+    }
+  } else {
+    reasons.push(["neutral","Volume/liquidity ratio is unavailable."]);
+  }
+
+  score = Math.round(Math.max(0,Math.min(100,score)));
+
+  const dataMissing =
+    ratio5 === null || ratio1h === null ||
+    !Number.isFinite(priceChange) ||
+    !Number.isFinite(liquidity) || liquidity <= 0 ||
+    !Number.isFinite(volume);
+
+  let label;
+  let color;
+
+  if (!Number.isFinite(liquidity) || liquidity <= 0) {
+    label = "UNVERIFIED";
+    color = "#fbbf24";
+  } else if (liquidity < 5000) {
+    label = "HIGH RISK";
+    color = "#fb7185";
+  } else if (score >= 80) {
+    label = "BULLISH SETUP";
+    color = "#22c55e";
+  } else if (score >= 60) {
+    label = "WATCH";
+    color = "#fbbf24";
+  } else if (score >= 40) {
+    label = "NEUTRAL";
+    color = "#a1a1aa";
+  } else {
+    label = "BEARISH";
+    color = "#fb7185";
+  }
+
+  if (dataMissing) label += " · LIMITED DATA";
+
+  return {
+    score,label,color,ratio5,ratio1h,volumeLiquidity,
+    total5,total1h,reasons,risks
+  };
+}
+
+function renderAnalysis(pool) {
+  const a = analyzeToken(pool);
+  const m5 = getBuySell(pool,"m5");
+
+  $("signalScore").textContent = `${a.score} / 100`;
+  $("signalScore").style.color = a.color;
+  $("signalLabel").textContent = a.label;
+  $("signalLabel").style.color = a.color;
+  $("signalBar").style.width = `${a.score}%`;
+  $("signalBar").style.background = a.color;
+
+  $("buyPressure").textContent =
+    `${number(m5.buys)} buys / ${number(m5.sells)} sells`;
+
+  $("pressureNote").textContent = a.ratio5 === null
+    ? "No 5-minute transactions reported"
+    : `${(a.ratio5 * 100).toFixed(1)}% of 5-minute transactions are buys`;
+
+  $("buyRatio5").textContent =
+    a.ratio5 === null ? "No data" : `${(a.ratio5 * 100).toFixed(1)}%`;
+
+  $("buyRatio1h").textContent =
+    a.ratio1h === null ? "No data" : `${(a.ratio1h * 100).toFixed(1)}%`;
+
+  $("volumeLiquidity").textContent =
+    a.volumeLiquidity === null ? "No data" : `${a.volumeLiquidity.toFixed(2)}×`;
+
+  $("riskLabel").textContent =
+    a.risks.length ? `${a.risks.length} warning(s)` : "No basic flags";
+  $("riskLabel").style.color = a.risks.length ? "#fbbf24" : "#a1a1aa";
+  $("riskNote").textContent = a.risks.length
+    ? a.risks[0]
+    : "No basic threshold warnings; token safety is not verified.";
+
+  $("signalReasons").innerHTML = a.reasons.map(([tone,message]) => {
+    const color = tone === "positive" ? "#22c55e"
+      : tone === "negative" ? "#fb7185" : "#fbbf24";
+    return `<div class="alert" style="color:${color}">${escapeHtml(message)}</div>`;
+  }).join("");
+
+  if (a.risks.length) {
+    $("signalReasons").innerHTML += a.risks.map(r =>
+      `<div class="alert red"><strong>RISK:</strong> ${escapeHtml(r)}</div>`
+    ).join("");
+  }
 }
 
 function renderMarket(pool) {
   if (!pool) return;
+
   const price = Number(pool.priceUsd);
   const liq = Number(pool.liquidity?.usd);
   const vol24 = Number(pool.volume?.h24);
@@ -402,6 +658,7 @@ function renderMarket(pool) {
   $("priceChange").textContent = Number.isFinite(pct)
     ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}% over 24h`
     : "24h change unavailable";
+
   $("priceChange").className = "metric-note " +
     (pct > 0 ? "green" : pct < 0 ? "red" : "");
 
@@ -410,19 +667,20 @@ function renderMarket(pool) {
   $("buys1h").textContent = number(buys1h.buys);
   $("sells1h").textContent = number(buys1h.sells);
 
-  $("volumeSplit").textContent = "Buy/sell USD volume not supplied by this endpoint";
+  $("volumeSplit").textContent =
+    "Separate buy/sell USD volume is not available from this endpoint";
+
   $("tokenInfo").textContent =
     `${pool.baseToken?.name || "Token"} (${pool.baseToken?.symbol || "?"}) · ` +
     `${pool.dexId || "DEX"} · ${pool.chainId || "solana"} · ` +
     `Pair ${pool.pairAddress || "unavailable"}`;
 
-  const now = new Date();
-  $("marketTime").textContent = now.toLocaleTimeString();
+  $("marketTime").textContent = new Date().toLocaleTimeString();
   $("marketStatus").textContent = "Connected";
   $("connection").textContent = "● Market data connected";
   $("connection").style.color = "#22c55e";
-  lastUpdateTime = now;
 
+  renderAnalysis(pool);
   checkAlerts(pool);
 }
 
@@ -430,30 +688,49 @@ function checkAlerts(pool) {
   const liq = Number(pool.liquidity?.usd);
   const b5 = getBuySell(pool,"m5");
 
-  const dropLimit = Math.min(99,Math.max(1,Number($("liquidityDrop").value)||20));
-  const ratio = Math.max(1,Number($("sellRatio").value)||2);
+  const dropLimit = Math.min(99,Math.max(1,
+    Number($("liquidityDrop").value) || 20));
+  const ratio = Math.max(1,Number($("sellRatio").value) || 2);
 
   if (lastLiquidity !== null && lastLiquidity > 0 && liq > 0) {
     const drop = (lastLiquidity - liq) / lastLiquidity * 100;
     if (drop >= dropLimit) {
-      addAlert(`Pool liquidity dropped ${drop.toFixed(1)}% since the previous refresh.`,
-        `liq-${Math.floor(Date.now()/60000)}`);
+      addAlert(
+        `Pool liquidity dropped ${drop.toFixed(1)}% since the previous refresh.`,
+        `liq-${Math.floor(Date.now()/60000)}`
+      );
     }
   }
+
   if (liq > 0) lastLiquidity = liq;
 
   if (b5.buys > 0 && b5.sells >= b5.buys * ratio) {
-    addAlert(`5-minute sell count is ${b5.sells} versus ${b5.buys} buys.`,
-      `sell-${Math.floor(Date.now()/60000)}`);
+    addAlert(
+      `5-minute sell count is ${b5.sells} versus ${b5.buys} buys.`,
+      `sell-${Math.floor(Date.now()/60000)}`
+    );
+  }
+
+  // Flag unusually strong transaction-count buying pressure.
+  // This is an alert to investigate, not a buy recommendation.
+  if (b5.buys >= 10 && b5.buys >= Math.max(1,b5.sells) * 2) {
+    addAlert(
+      `Strong 5-minute buying activity: ${b5.buys} buys versus ${b5.sells} sells. Verify price momentum and liquidity.`,
+      `buy-pressure-${Math.floor(Date.now()/60000)}`,
+      "green"
+    );
   }
 
   const entry = Number($("entry").value);
   const current = Number(pool.priceUsd);
   const multiple = Number($("alertMultiple").value);
+
   if (entry > 0 && current > 0 && current / entry >= multiple &&
       lastAlertMultiple !== multiple) {
-    addAlert(`Price reached your ${multiple}× profit-alert threshold.`,
-      `profit-${multiple}-${mint}-${selectedPool?.pairAddress}`);
+    addAlert(
+      `Price reached your ${multiple}× profit-alert threshold.`,
+      `profit-${multiple}-${mint}-${selectedPool?.pairAddress}`
+    );
     lastAlertMultiple = multiple;
   }
 }
@@ -461,7 +738,7 @@ function checkAlerts(pool) {
 function calculatePosition() {
   const investment = Number($("investment").value);
   const entry = Number($("entry").value);
-  const costs = Math.max(0,Number($("costs").value)||0);
+  const costs = Math.max(0,Number($("costs").value) || 0);
   const current = Number(selectedPool?.priceUsd);
   const valid = investment > 0 && entry > 0 && current > 0;
 
@@ -482,20 +759,25 @@ function calculatePosition() {
   $("positionValue").textContent = money(value);
   $("pnl").textContent = `${pnl >= 0 ? "+" : ""}${money(pnl)}`;
   $("pnl").className = "metric-value " + (pnl >= 0 ? "green" : "red");
-  $("returnPct").textContent = `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}% price return before exit costs`;
-  $("tokenQuantity").textContent = `Estimated quantity: ${quantity.toLocaleString("en-US",{maximumFractionDigits:8})} tokens. This assumes your entry price and investment exclude separately entered costs.`;
+  $("returnPct").textContent =
+    `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}% price return before exit costs`;
+
+  $("tokenQuantity").textContent =
+    `Estimated quantity: ${quantity.toLocaleString("en-US",{maximumFractionDigits:8})} tokens. Assumes the investment amount excludes separately entered costs.`;
 
   const multiples = [2,3,5,10];
+
   $("targets").innerHTML = multiples.map(m => {
     const targetPrice = entry * m;
     const targetValue = quantity * targetPrice;
     const targetPnl = targetValue - investment - costs;
+
     return `<div class="target">
       <div class="target-name">${m}× TARGET</div>
       <div class="target-price">${money(targetPrice)}</div>
       <div class="target-value green">Value ${money(targetValue)}</div>
       <div class="target-value ${targetPnl >= 0 ? "green" : "red"}">
-        P&L ${targetPnl >= 0 ? "+" : ""}${money(targetPnl)}
+        P&amp;L ${targetPnl >= 0 ? "+" : ""}${money(targetPnl)}
       </div>
     </div>`;
   }).join("");
@@ -503,6 +785,7 @@ function calculatePosition() {
 
 async function refresh() {
   if (!mint || isRefreshing) return;
+
   isRefreshing = true;
   $("scanBtn").disabled = true;
 
@@ -511,40 +794,55 @@ async function refresh() {
       `https://api.dexscreener.com/token-pairs/v1/solana/${encodeURIComponent(mint)}`,
       {cache:"no-store"}
     );
-    if (!response.ok) throw new Error(`API returned HTTP ${response.status}`);
+
+    if (!response.ok) {
+      throw new Error(`API returned HTTP ${response.status}`);
+    }
 
     const data = await response.json();
-    const pools = Array.isArray(data) ? data.filter(p => p.chainId === "solana" || !p.chainId) : [];
+    const pools = Array.isArray(data)
+      ? data.filter(p => p.chainId === "solana" || !p.chainId)
+      : [];
 
     if (!pools.length) {
       $("tokenInfo").textContent = "No Solana pools found for that mint.";
-      $("pools").innerHTML = '<div class="empty">No pools found. Check the mint address and try again.</div>';
+      $("pools").innerHTML =
+        '<div class="empty">No pools found. Check the mint address and try again.</div>';
       throw new Error("No pools found");
     }
 
-    pools.sort((a,b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0));
+    pools.sort((a,b) =>
+      Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0)
+    );
 
-    const stillExists = selectedPool && pools.some(p => p.pairAddress === selectedPool.pairAddress);
+    const stillExists = selectedPool &&
+      pools.some(p => p.pairAddress === selectedPool.pairAddress);
+
     if (!stillExists) {
       selectedPool = pools[0];
       lastLiquidity = null;
       lastAlertMultiple = 0;
     } else {
-      selectedPool = pools.find(p => p.pairAddress === selectedPool.pairAddress);
+      selectedPool = pools.find(
+        p => p.pairAddress === selectedPool.pairAddress
+      );
     }
 
     renderPools(pools);
     renderMarket(selectedPool);
     calculatePosition();
+
   } catch (error) {
     $("marketStatus").textContent = "Unavailable";
     $("connection").textContent = "● Data unavailable";
     $("connection").style.color = "#fbbf24";
+
     if (error.message !== "No pools found") {
       $("tokenInfo").textContent =
         "Could not retrieve market data. Check your connection or API access. " +
         "If the browser blocks the request, use a small backend proxy.";
     }
+
     console.error(error);
   } finally {
     isRefreshing = false;
@@ -554,10 +852,12 @@ async function refresh() {
 
 function startScan() {
   const value = $("mint").value.trim();
+
   if (!value) {
     $("tokenInfo").textContent = "Please enter a Solana token mint address.";
     return;
   }
+
   mint = value;
   selectedPool = null;
   lastLiquidity = null;
@@ -565,24 +865,30 @@ function startScan() {
   alertKeys = new Set();
   alerts = [];
   renderAlerts();
+
   if (refreshTimer) clearInterval(refreshTimer);
+
   refresh();
   refreshTimer = setInterval(refresh,15000);
 }
 
 $("scanBtn").addEventListener("click",startScan);
+
 $("mint").addEventListener("keydown",e => {
   if (e.key === "Enter") startScan();
 });
+
 ["investment","entry","costs","alertMultiple"].forEach(id => {
   $(id).addEventListener("input",calculatePosition);
   $(id).addEventListener("change",calculatePosition);
 });
+
 $("clearAlerts").addEventListener("click",() => {
   alerts = [];
   alertKeys = new Set();
   renderAlerts();
 });
+
 renderAlerts();
 calculatePosition();
 </script>
