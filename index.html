@@ -1,0 +1,590 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crimson Intel | Solana Intelligence</title>
+<style>
+:root {
+  --bg:#0b0b0f; --panel:#15151c; --panel2:#1d1d26;
+  --red:#a31330; --red2:#e11d48; --text:#f4f4f5;
+  --muted:#a1a1aa; --green:#22c55e; --border:#30303a;
+  --amber:#fbbf24;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:Inter,system-ui,-apple-system,sans-serif}
+header{padding:20px 5%;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:15px;
+  background:#101015;position:sticky;top:0;z-index:5}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{background:var(--red);width:43px;height:43px;border-radius:12px;
+  display:grid;place-items:center;font-size:22px;font-weight:900}
+h1{font-size:20px;letter-spacing:1.5px;margin:0}
+.subtitle{font-size:11px;color:var(--muted);margin-top:4px}
+.status{font-size:12px;color:var(--muted)}
+main{max-width:1400px;margin:auto;padding:24px 5% 50px}
+h2{font-size:15px;letter-spacing:.5px;margin:0 0 16px}
+section{margin-bottom:25px}
+.panel{background:var(--panel);border:1px solid var(--border);
+  border-radius:14px;padding:19px;min-width:0}
+.search-row{display:flex;gap:10px}
+input,select,button{font:inherit;border-radius:8px;padding:12px;
+  border:1px solid var(--border);background:var(--panel2);color:var(--text)}
+input{width:100%;min-width:0}
+button{cursor:pointer;background:var(--red);border-color:var(--red);
+  font-weight:700}
+button:hover{background:#c01639}
+button:disabled{opacity:.6;cursor:wait}
+.small-btn{padding:8px 10px;font-size:12px}
+label{display:block;color:var(--muted);font-size:12px;margin-bottom:7px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.metric{background:var(--panel);border:1px solid var(--border);
+  padding:17px;border-radius:12px;min-width:0}
+.metric-label{color:var(--muted);font-size:12px}
+.metric-value{font-size:clamp(18px,2vw,25px);font-weight:750;
+  margin:10px 0 5px;overflow-wrap:anywhere}
+.metric-note{font-size:11px;color:var(--muted)}
+.green{color:var(--green)} .red{color:#fb7185}
+.amber{color:var(--amber)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.form-field{min-width:0}
+.targets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.target{background:var(--panel2);border-radius:10px;padding:13px}
+.target-name{font-size:12px;color:var(--muted)}
+.target-price{font-size:17px;font-weight:700;margin-top:8px;overflow-wrap:anywhere}
+.target-value{font-size:12px;margin-top:5px}
+.pool-list{display:grid;gap:10px}
+.pool{border:1px solid var(--border);border-radius:10px;padding:13px;
+  display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pool.selected{border-color:var(--red2);background:#29131b}
+.pool button{flex-shrink:0}
+.pool-name{font-weight:700;font-size:13px}
+.pool-info{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.6}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+th,td{text-align:left;padding:12px;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-weight:500}
+.empty{color:var(--muted);font-size:13px;line-height:1.7}
+.notice{background:#241b0c;border:1px solid #59441a;padding:13px;
+  border-radius:10px;color:#fcd34d;font-size:12px;line-height:1.6}
+.alert{padding:11px 0;border-bottom:1px solid var(--border);
+  font-size:12px;line-height:1.6}
+.alert:last-child{border-bottom:0}
+footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
+@media(max-width:800px){
+ .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .two-col{grid-template-columns:1fr}
+ header{padding:14px 4%} main{padding:20px 4%}
+}
+@media(max-width:450px){
+ .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ .metric{padding:12px}
+ .targets{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .form-grid{grid-template-columns:1fr}
+ .search-row{flex-direction:column}
+ h1{font-size:17px}
+ .status{font-size:10px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">C</div>
+    <div>
+      <h1>CRIMSON INTEL</h1>
+      <div class="subtitle">SOLANA MEME-COIN INTELLIGENCE</div>
+    </div>
+  </div>
+  <div class="status" id="connection">● Not connected</div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>01 / TOKEN SCANNER</h2>
+    <label for="mint">Solana token mint address</label>
+    <div class="search-row">
+      <input id="mint" placeholder="Paste token mint address…" autocomplete="off">
+      <button id="scanBtn">Scan token</button>
+    </div>
+    <div class="subtitle" style="margin-top:12px">
+      Source: DEX Screener · Refreshes every 15 seconds while this page is open.
+    </div>
+    <div id="tokenInfo" class="empty" style="margin-top:14px">
+      Enter a token mint address to find its available DEX pools.
+    </div>
+  </section>
+
+  <section>
+    <h2>02 / LIVE MARKET</h2>
+    <div class="grid">
+      <div class="metric">
+        <div class="metric-label">TOKEN PRICE</div>
+        <div class="metric-value" id="price">—</div>
+        <div class="metric-note" id="priceChange">Waiting for token</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">POOL LIQUIDITY</div>
+        <div class="metric-value" id="liquidity">—</div>
+        <div class="metric-note">USD liquidity estimate</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">24H VOLUME</div>
+        <div class="metric-value" id="volume">—</div>
+        <div class="metric-note" id="volumeSplit">Buy / sell volume</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">FDV / MARKET CAP</div>
+        <div class="metric-value" id="fdv">—</div>
+        <div class="metric-note">Provider-reported values</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>03 / BUY & SELL ACTIVITY</h2>
+    <div class="grid">
+      <div class="metric">
+        <div class="metric-label">BUYS · 5 MIN</div>
+        <div class="metric-value green" id="buys5">—</div>
+        <div class="metric-note">Transaction count</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">SELLS · 5 MIN</div>
+        <div class="metric-value red" id="sells5">—</div>
+        <div class="metric-note">Transaction count</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">BUYS · 1 HOUR</div>
+        <div class="metric-value green" id="buys1h">—</div>
+        <div class="metric-note">Transaction count</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">SELLS · 1 HOUR</div>
+        <div class="metric-value red" id="sells1h">—</div>
+        <div class="metric-note">Transaction count</div>
+      </div>
+    </div>
+    <div class="two-col" style="margin-top:15px">
+      <div class="metric">
+        <div class="metric-label">UNIQUE BUYERS / SELLERS</div>
+        <div class="metric-value">Not connected</div>
+        <div class="metric-note">Requires individual swap records and wallet deduplication.</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">CURRENT TOKEN HOLDERS</div>
+        <div class="metric-value">Not connected</div>
+        <div class="metric-note">Requires indexed holder or token-account balance data.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="two-col">
+    <div class="panel">
+      <h2>04 / YOUR POSITION</h2>
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="investment">Investment amount (USD)</label>
+          <input id="investment" type="number" min="0" step="any" placeholder="100">
+        </div>
+        <div class="form-field">
+          <label for="entry">Entry price (USD per token)</label>
+          <input id="entry" type="number" min="0" step="any" placeholder="Enter your entry">
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:14px">
+        <div class="form-field">
+          <label for="costs">Total estimated entry costs (USD)</label>
+          <input id="costs" type="number" min="0" step="any" value="0">
+        </div>
+        <div class="form-field">
+          <label for="alertMultiple">Profit alert multiple</label>
+          <select id="alertMultiple">
+            <option value="2">2×</option>
+            <option value="3">3×</option>
+            <option value="5">5×</option>
+            <option value="10">10×</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:15px;grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="metric">
+          <div class="metric-label">ESTIMATED POSITION VALUE</div>
+          <div class="metric-value" id="positionValue">—</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">ESTIMATED P&L</div>
+          <div class="metric-value" id="pnl">—</div>
+          <div class="metric-note" id="returnPct">Enter investment and entry price</div>
+        </div>
+      </div>
+      <div class="subtitle" id="tokenQuantity" style="margin-top:12px">
+        Estimated token quantity will appear here.
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>05 / PROFIT TARGETS</h2>
+      <div class="targets" id="targets"></div>
+      <div class="notice" style="margin-top:15px">
+        Targets are calculations, not predictions. Estimated values exclude exit costs,
+        slippage and taxes. A target price does not guarantee that liquidity will
+        be available to sell at that price.
+      </div>
+    </div>
+  </section>
+
+  <section class="two-col">
+    <div class="panel">
+      <h2>06 / AVAILABLE POOLS</h2>
+      <div id="pools" class="empty">
+        Scan a token to list its discovered pools.
+      </div>
+    </div>
+    <div class="panel">
+      <h2>07 / ALERT CENTER</h2>
+      <div class="form-grid">
+        <div>
+          <label for="liquidityDrop">Liquidity-drop alert (%)</label>
+          <input id="liquidityDrop" type="number" min="1" max="99" value="20">
+        </div>
+        <div>
+          <label for="sellRatio">Sell/buy count ratio</label>
+          <input id="sellRatio" type="number" min="1" step="0.1" value="2">
+        </div>
+      </div>
+      <div class="subtitle" style="margin:10px 0">
+        Thresholds are checked on refresh. Alerts work only while this page remains open.
+      </div>
+      <div id="alerts" class="empty">No alerts yet.</div>
+      <button class="small-btn" id="clearAlerts" style="margin-top:12px">Clear alerts</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>08 / DATA FRESHNESS</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>DATA SOURCE</th><th>STATUS</th><th>LAST UPDATE</th></tr></thead>
+        <tbody>
+          <tr><td>DEX Screener market data</td><td id="marketStatus">Waiting</td><td id="marketTime">—</td></tr>
+          <tr><td>Unique wallet activity</td><td class="amber">Provider required</td><td>—</td></tr>
+          <tr><td>Holder balances</td><td class="amber">Provider required</td><td>—</td></tr>
+          <tr><td>Background notifications</td><td class="amber">Backend required</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    CRIMSON INTEL · SOLANA MARKET MONITOR<br>
+    Informational tool only. Not financial advice. Verify all data before trading.
+  </footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let mint = "";
+let selectedPool = null;
+let refreshTimer = null;
+let isRefreshing = false;
+let lastLiquidity = null;
+let lastAlertMultiple = 0;
+let alerts = [];
+let alertKeys = new Set();
+let lastUpdateTime = null;
+
+const money = n => Number.isFinite(n)
+  ? n.toLocaleString("en-US", {style:"currency",currency:"USD",
+      maximumFractionDigits:n < 0.01 ? 8 : 2})
+  : "—";
+
+const compact = n => Number.isFinite(n)
+  ? new Intl.NumberFormat("en-US", {notation:"compact",
+      maximumFractionDigits:2}).format(n)
+  : "—";
+
+const number = n => Number.isFinite(n)
+  ? n.toLocaleString("en-US",{maximumFractionDigits:2})
+  : "—";
+
+function addAlert(message, key, tone="amber") {
+  if (alertKeys.has(key)) return;
+  alertKeys.add(key);
+  alerts.unshift({message, tone, time:new Date()});
+  alerts = alerts.slice(0,30);
+  renderAlerts();
+}
+
+function renderAlerts() {
+  $("alerts").innerHTML = alerts.length
+    ? alerts.map(a => `<div class="alert ${a.tone}">
+        <strong>${escapeHtml(a.message)}</strong>
+        <div class="subtitle">${a.time.toLocaleTimeString()}</div>
+      </div>`).join("")
+    : '<div class="empty">No alerts yet.</div>';
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function getBuySell(pool, period) {
+  const t = pool.txns && pool.txns[period];
+  return {
+    buys: Number(t?.buys ?? 0),
+    sells: Number(t?.sells ?? 0)
+  };
+}
+
+function renderPools(pools) {
+  $("pools").innerHTML = "";
+  if (!pools.length) {
+    $("pools").innerHTML = '<div class="empty">No pools found for this mint.</div>';
+    return;
+  }
+
+  const wrap = document.createElement("div");
+  wrap.className = "pool-list";
+
+  pools.slice(0,12).forEach((pool,index) => {
+    const div = document.createElement("div");
+    div.className = "pool" + (pool.pairAddress === selectedPool?.pairAddress ? " selected" : "");
+    const base = pool.baseToken?.symbol || "TOKEN";
+    const quote = pool.quoteToken?.symbol || "QUOTE";
+    const dex = pool.dexId || "DEX";
+    const liq = Number(pool.liquidity?.usd || 0);
+
+    const info = document.createElement("div");
+    info.style.minWidth = "0";
+    info.innerHTML = `<div class="pool-name">${escapeHtml(base)} / ${escapeHtml(quote)}</div>
+      <div class="pool-info">${escapeHtml(dex)} · Liquidity ${money(liq)}<br>
+      Pair: ${escapeHtml(pool.pairAddress || "Unavailable")}</div>`;
+
+    const btn = document.createElement("button");
+    btn.className = "small-btn";
+    btn.textContent = pool.pairAddress === selectedPool?.pairAddress ? "Selected" : "Use pool";
+    btn.onclick = () => {
+      selectedPool = pool;
+      lastLiquidity = null;
+      lastAlertMultiple = 0;
+      renderPools(pools);
+      renderMarket(pool);
+      calculatePosition();
+    };
+
+    div.append(info,btn);
+    wrap.append(div);
+  });
+  $("pools").append(wrap);
+}
+
+function renderMarket(pool) {
+  if (!pool) return;
+  const price = Number(pool.priceUsd);
+  const liq = Number(pool.liquidity?.usd);
+  const vol24 = Number(pool.volume?.h24);
+  const buys5 = getBuySell(pool,"m5");
+  const buys1h = getBuySell(pool,"h1");
+  const pct = Number(pool.priceChange?.h24);
+
+  $("price").textContent = Number.isFinite(price) ? money(price) : "—";
+  $("liquidity").textContent = money(liq);
+  $("volume").textContent = money(vol24);
+  $("fdv").textContent = money(Number(pool.fdv ?? pool.marketCap));
+
+  $("priceChange").textContent = Number.isFinite(pct)
+    ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}% over 24h`
+    : "24h change unavailable";
+  $("priceChange").className = "metric-note " +
+    (pct > 0 ? "green" : pct < 0 ? "red" : "");
+
+  $("buys5").textContent = number(buys5.buys);
+  $("sells5").textContent = number(buys5.sells);
+  $("buys1h").textContent = number(buys1h.buys);
+  $("sells1h").textContent = number(buys1h.sells);
+
+  $("volumeSplit").textContent = "Buy/sell USD volume not supplied by this endpoint";
+  $("tokenInfo").textContent =
+    `${pool.baseToken?.name || "Token"} (${pool.baseToken?.symbol || "?"}) · ` +
+    `${pool.dexId || "DEX"} · ${pool.chainId || "solana"} · ` +
+    `Pair ${pool.pairAddress || "unavailable"}`;
+
+  const now = new Date();
+  $("marketTime").textContent = now.toLocaleTimeString();
+  $("marketStatus").textContent = "Connected";
+  $("connection").textContent = "● Market data connected";
+  $("connection").style.color = "#22c55e";
+  lastUpdateTime = now;
+
+  checkAlerts(pool);
+}
+
+function checkAlerts(pool) {
+  const liq = Number(pool.liquidity?.usd);
+  const b5 = getBuySell(pool,"m5");
+
+  const dropLimit = Math.min(99,Math.max(1,Number($("liquidityDrop").value)||20));
+  const ratio = Math.max(1,Number($("sellRatio").value)||2);
+
+  if (lastLiquidity !== null && lastLiquidity > 0 && liq > 0) {
+    const drop = (lastLiquidity - liq) / lastLiquidity * 100;
+    if (drop >= dropLimit) {
+      addAlert(`Pool liquidity dropped ${drop.toFixed(1)}% since the previous refresh.`,
+        `liq-${Math.floor(Date.now()/60000)}`);
+    }
+  }
+  if (liq > 0) lastLiquidity = liq;
+
+  if (b5.buys > 0 && b5.sells >= b5.buys * ratio) {
+    addAlert(`5-minute sell count is ${b5.sells} versus ${b5.buys} buys.`,
+      `sell-${Math.floor(Date.now()/60000)}`);
+  }
+
+  const entry = Number($("entry").value);
+  const current = Number(pool.priceUsd);
+  const multiple = Number($("alertMultiple").value);
+  if (entry > 0 && current > 0 && current / entry >= multiple &&
+      lastAlertMultiple !== multiple) {
+    addAlert(`Price reached your ${multiple}× profit-alert threshold.`,
+      `profit-${multiple}-${mint}-${selectedPool?.pairAddress}`);
+    lastAlertMultiple = multiple;
+  }
+}
+
+function calculatePosition() {
+  const investment = Number($("investment").value);
+  const entry = Number($("entry").value);
+  const costs = Math.max(0,Number($("costs").value)||0);
+  const current = Number(selectedPool?.priceUsd);
+  const valid = investment > 0 && entry > 0 && current > 0;
+
+  if (!valid) {
+    $("positionValue").textContent = "—";
+    $("pnl").textContent = "—";
+    $("returnPct").textContent = "Enter investment and entry price";
+    $("tokenQuantity").textContent = "Estimated token quantity will appear here.";
+    $("targets").innerHTML = "";
+    return;
+  }
+
+  const quantity = investment / entry;
+  const value = quantity * current;
+  const pnl = value - investment - costs;
+  const pct = (current / entry - 1) * 100;
+
+  $("positionValue").textContent = money(value);
+  $("pnl").textContent = `${pnl >= 0 ? "+" : ""}${money(pnl)}`;
+  $("pnl").className = "metric-value " + (pnl >= 0 ? "green" : "red");
+  $("returnPct").textContent = `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}% price return before exit costs`;
+  $("tokenQuantity").textContent = `Estimated quantity: ${quantity.toLocaleString("en-US",{maximumFractionDigits:8})} tokens. This assumes your entry price and investment exclude separately entered costs.`;
+
+  const multiples = [2,3,5,10];
+  $("targets").innerHTML = multiples.map(m => {
+    const targetPrice = entry * m;
+    const targetValue = quantity * targetPrice;
+    const targetPnl = targetValue - investment - costs;
+    return `<div class="target">
+      <div class="target-name">${m}× TARGET</div>
+      <div class="target-price">${money(targetPrice)}</div>
+      <div class="target-value green">Value ${money(targetValue)}</div>
+      <div class="target-value ${targetPnl >= 0 ? "green" : "red"}">
+        P&L ${targetPnl >= 0 ? "+" : ""}${money(targetPnl)}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function refresh() {
+  if (!mint || isRefreshing) return;
+  isRefreshing = true;
+  $("scanBtn").disabled = true;
+
+  try {
+    const response = await fetch(
+      `https://api.dexscreener.com/token-pairs/v1/solana/${encodeURIComponent(mint)}`,
+      {cache:"no-store"}
+    );
+    if (!response.ok) throw new Error(`API returned HTTP ${response.status}`);
+
+    const data = await response.json();
+    const pools = Array.isArray(data) ? data.filter(p => p.chainId === "solana" || !p.chainId) : [];
+
+    if (!pools.length) {
+      $("tokenInfo").textContent = "No Solana pools found for that mint.";
+      $("pools").innerHTML = '<div class="empty">No pools found. Check the mint address and try again.</div>';
+      throw new Error("No pools found");
+    }
+
+    pools.sort((a,b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0));
+
+    const stillExists = selectedPool && pools.some(p => p.pairAddress === selectedPool.pairAddress);
+    if (!stillExists) {
+      selectedPool = pools[0];
+      lastLiquidity = null;
+      lastAlertMultiple = 0;
+    } else {
+      selectedPool = pools.find(p => p.pairAddress === selectedPool.pairAddress);
+    }
+
+    renderPools(pools);
+    renderMarket(selectedPool);
+    calculatePosition();
+  } catch (error) {
+    $("marketStatus").textContent = "Unavailable";
+    $("connection").textContent = "● Data unavailable";
+    $("connection").style.color = "#fbbf24";
+    if (error.message !== "No pools found") {
+      $("tokenInfo").textContent =
+        "Could not retrieve market data. Check your connection or API access. " +
+        "If the browser blocks the request, use a small backend proxy.";
+    }
+    console.error(error);
+  } finally {
+    isRefreshing = false;
+    $("scanBtn").disabled = false;
+  }
+}
+
+function startScan() {
+  const value = $("mint").value.trim();
+  if (!value) {
+    $("tokenInfo").textContent = "Please enter a Solana token mint address.";
+    return;
+  }
+  mint = value;
+  selectedPool = null;
+  lastLiquidity = null;
+  lastAlertMultiple = 0;
+  alertKeys = new Set();
+  alerts = [];
+  renderAlerts();
+  if (refreshTimer) clearInterval(refreshTimer);
+  refresh();
+  refreshTimer = setInterval(refresh,15000);
+}
+
+$("scanBtn").addEventListener("click",startScan);
+$("mint").addEventListener("keydown",e => {
+  if (e.key === "Enter") startScan();
+});
+["investment","entry","costs","alertMultiple"].forEach(id => {
+  $(id).addEventListener("input",calculatePosition);
+  $(id).addEventListener("change",calculatePosition);
+});
+$("clearAlerts").addEventListener("click",() => {
+  alerts = [];
+  alertKeys = new Set();
+  renderAlerts();
+});
+renderAlerts();
+calculatePosition();
+</script>
+</body>
+</html>
