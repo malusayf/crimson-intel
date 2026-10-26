@@ -1,290 +1,797 @@
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Crimson Intel</title>
 <style>
-:root{color-scheme:dark;--bg:#09090d;--panel:#14141d;--line:#2b2b3b;--red:#f0445e;--muted:#a4a4b8;--green:#45d6a0}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:#f6f6fa;font:15px system-ui,sans-serif}
-main{max-width:1100px;margin:auto;padding:22px 16px 48px}
-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:28px}
-.brand{display:flex;align-items:center;gap:12px}
-.logo{background:var(--red);border-radius:12px;padding:10px 14px;font-size:23px;font-weight:900}
-h1{font-size:19px;margin:0}
-h2{font-size:32px;margin:8px 0}
-h3{font-size:16px;margin:0}
-p{color:var(--muted);line-height:1.6}
-button,input{font:inherit;border-radius:10px;padding:11px 13px}
-button{cursor:pointer;background:#222230;color:white;border:1px solid var(--line);font-weight:700}
-button.primary{background:var(--red);border-color:var(--red)}
-button:disabled{opacity:.5;cursor:not-allowed}
-input{width:100%;background:#09090d;color:white;border:1px solid var(--line);margin-top:7px}
-.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:18px;min-width:0}
-.metric{grid-column:span 3}.half{grid-column:span 6}.full{grid-column:span 12}
-.label{color:var(--muted);font-size:12px;margin-bottom:8px}
-.value{font-size:24px;font-weight:800;overflow-wrap:anywhere}
-.small{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
-.head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:15px}
-#notice{display:none;padding:12px;border:1px solid var(--line);border-radius:10px;margin:14px 0;overflow-wrap:anywhere}
-#notice.show{display:block}
-#notice.error{color:#ff9bab;border-color:#6d2636}
-#notice.good{color:var(--green);border-color:#235b49}
-.empty{padding:20px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);text-align:center}
-.tablewrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;min-width:440px;font-size:13px}
-th,td{text-align:left;padding:11px 8px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
-th{color:var(--muted);font-size:11px}
-a{color:#ff8999;text-decoration:none}
-.actions{display:flex;gap:8px;flex-wrap:wrap}
-.positive{color:var(--green)}.negative{color:#ff8999}
-footer{margin-top:24px;font-size:11px;color:#77778a}
-@media(max-width:760px){.metric{grid-column:span 6}.half{grid-column:span 12}h2{font-size:27px}}
-@media(max-width:420px){.metric{grid-column:span 12}}
+:root {
+  color-scheme: dark;
+  --bg: #080b17;
+  --panel: #131a2e;
+  --border: #303955;
+  --pink: #fa477f;
+  --green: #4ee0a9;
+  --red: #ff6977;
+  --muted: #a5aecb;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: radial-gradient(circle at top,#242044,#080b17 55%);
+  color: #f2f3ff;
+  font: 15px system-ui,Arial;
+}
+header,main {
+  max-width: 1180px;
+  margin: auto;
+  padding: 22px;
+}
+h1 { margin: 0; font-size: 27px; }
+h2 { font-size: 17px; margin: 0 0 14px; }
+p,.muted { color: var(--muted); }
+.tag {
+  color: var(--pink);
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+.panel {
+  background: #131a2ee8;
+  border: 1px solid var(--border);
+  border-radius: 17px;
+  padding: 20px;
+  margin-bottom: 17px;
+}
+.flex {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.flex input { flex: 1; min-width: 0; }
+input {
+  background: #090e20;
+  border: 1px solid #465071;
+  border-radius: 10px;
+  color: white;
+  padding: 12px;
+  width: 100%;
+  font: inherit;
+}
+button {
+  background: linear-gradient(120deg,#f64b82,#8657ef);
+  border: 0;
+  color: white;
+  border-radius: 10px;
+  padding: 12px 17px;
+  font-weight: 750;
+  cursor: pointer;
+}
+button:disabled { opacity: .55; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 12px;
+}
+.metric {
+  background: #0a1124;
+  border: 1px solid #293450;
+  padding: 15px;
+  border-radius: 13px;
+  min-width: 0;
+}
+.label { font-size: 12px; color: var(--muted); }
+.value {
+  font-size: 22px;
+  font-weight: 800;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 17px;
+}
+.two .panel { margin: 0; }
+.chart {
+  width: 100%;
+  height: 480px;
+  border: 0;
+  border-radius: 12px;
+  background: #080b17;
+}
+.meter {
+  display: flex;
+  overflow: hidden;
+  border-radius: 20px;
+  height: 17px;
+  background: #34405c;
+  margin: 14px 0;
+}
+.buy { background: var(--green); width: 50%; }
+.sell { background: var(--red); width: 50%; }
+.between {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.green { color: var(--green); }
+.red { color: var(--red); }
+.targets {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.target {
+  background: #0b1122;
+  border: 1px solid #303955;
+  border-radius: 10px;
+  padding: 11px;
+}
+.target strong {
+  display: block;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.inputs {
+  display: grid;
+  grid-template-columns: repeat(2,1fr);
+  gap: 10px;
+}
+.note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+a { color: #a9b8ff; }
+.disabled {
+  border: 1px dashed #5b5475;
+  padding: 16px;
+  border-radius: 11px;
+  background: #100e20;
+}
+.status {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+@media(max-width:800px) {
+  .grid { grid-template-columns: repeat(2,1fr); }
+  .two { grid-template-columns: 1fr; }
+  .targets { grid-template-columns: repeat(2,1fr); }
+}
+@media(max-width:450px) {
+  header,main { padding: 13px; }
+  .panel { padding: 14px; }
+  .flex.search {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .value { font-size: 18px; }
+  .chart { height: 340px; }
+  .inputs { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
-<main>
+
 <header>
-  <div class="brand">
-    <div class="logo">C</div>
-    <div><h1>CRIMSON INTEL</h1><div class="small">SOLANA WALLET DASHBOARD</div></div>
+  <div class="tag">KNIGHTSHADE ANALYTICS</div>
+  <h1>⚔ CRIMSON INTEL</h1>
+  <div class="muted">
+    One coin. Deeper intelligence. Solana market dashboard.
   </div>
-  <div id="status" class="small">Wallet disconnected</div>
 </header>
 
-<section>
-  <div class="small" style="color:var(--red);letter-spacing:2px">ON-CHAIN INTELLIGENCE</div>
-  <h2>Your wallet. Your data.</h2>
-  <p>View your Solana balance, token holdings and recent transactions.</p>
-  <div class="actions">
-    <button class="primary" id="connect">Connect Phantom</button>
-    <button id="refresh" disabled>Refresh</button>
-    <button id="disconnect" disabled>Disconnect</button>
+<main>
+
+<section class="panel">
+  <h2>Track a Solana coin</h2>
+  <div class="flex search">
+    <input id="mint" placeholder="Paste token mint address"
+      spellcheck="false" aria-label="Solana token address">
+    <button id="track">Track coin</button>
+  </div>
+  <div class="status" id="status">
+    Enter a token mint address. Updates every 20 seconds while the tab is active.
   </div>
 </section>
 
-<div id="notice"></div>
-
-<section class="grid" style="margin-top:20px">
-  <div class="card metric"><div class="label">SOL balance</div><div class="value" id="sol">—</div><div class="small">Native SOL</div></div>
-  <div class="card metric"><div class="label">Token holdings</div><div class="value" id="count">—</div><div class="small">Non-zero token accounts</div></div>
-  <div class="card metric"><div class="label">Transactions</div><div class="value" id="txcount">—</div><div class="small">Recent signatures</div></div>
-  <div class="card metric"><div class="label">Wallet</div><div class="value" id="wallet" style="font-size:16px">—</div><div class="small" id="addresslink">Not connected</div></div>
-
-  <div class="card half">
-    <div class="head"><h3>Token holdings</h3></div>
-    <div id="tokens" class="empty">Connect Phantom to load your tokens.</div>
+<section class="panel">
+  <div class="between">
+    <div>
+      <h2 id="name">No coin selected</h2>
+      <div class="muted" id="pool">Waiting for market data</div>
+    </div>
+    <a id="dexlink" href="https://dexscreener.com/solana"
+      target="_blank" rel="noopener">DEX Screener ↗</a>
   </div>
 
-  <div class="card half">
-    <div class="head"><h3>RPC settings</h3></div>
-    <label class="small" for="helius">Helius API key (optional)</label>
-    <input id="helius" type="password" placeholder="Paste API key">
-    <p class="small">Used for requests from this browser. Do not put a sensitive production key on a public website.</p>
-    <button id="savekey">Use this key</button>
-  </div>
-
-  <div class="card full">
-    <div class="head"><h3>Recent transactions</h3></div>
-    <div id="history" class="empty">Connect Phantom to load transaction history.</div>
+  <div class="grid" style="margin-top:17px">
+    <div class="metric">
+      <div class="label">USD PRICE</div>
+      <div class="value" id="price">—</div>
+      <div id="change" class="muted">24h change</div>
+    </div>
+    <div class="metric">
+      <div class="label">MARKET CAP</div>
+      <div class="value" id="cap">—</div>
+      <div class="muted" id="fdv">FDV: —</div>
+    </div>
+    <div class="metric">
+      <div class="label">LIQUIDITY</div>
+      <div class="value" id="liq">—</div>
+    </div>
+    <div class="metric">
+      <div class="label">24H VOLUME</div>
+      <div class="value" id="vol">—</div>
+      <div class="muted" id="tx24">—</div>
+    </div>
   </div>
 </section>
 
-<footer>
-Crimson Intel is independent and not affiliated with Phantom or Solana. Never enter your recovery phrase or private key here. This dashboard only reads blockchain data and requests a plain message signature to confirm wallet ownership; it does not send transactions. Token USD values, cost basis and P&amp;L are not calculated in this version.
-</footer>
+<section class="panel">
+  <h2>DEX chart</h2>
+  <iframe id="chart" class="chart"
+    title="DEX Screener chart"
+    loading="lazy"
+    src="about:blank"></iframe>
+  <p class="note">
+    Chart supplied by DEX Screener. If embedding is blocked,
+    use the DEX Screener link above.
+  </p>
+</section>
+
+<div class="two">
+
+<section class="panel">
+  <h2>Money Flow Index
+    <span class="label">(pressure proxy)</span>
+  </h2>
+
+  <div class="between">
+    <div>
+      <div class="label">BUY-SIDE SHARE OF 5M TRADES</div>
+      <div class="value" id="score">—</div>
+    </div>
+    <div style="text-align:right">
+      <div class="label">MARKET SIGNAL</div>
+      <div class="value" id="signal">—</div>
+    </div>
+  </div>
+
+  <div class="meter">
+    <div class="buy" id="buybar"></div>
+    <div class="sell" id="sellbar"></div>
+  </div>
+
+  <div class="between">
+    <span class="green" id="buys">Buys: —</span>
+    <span class="red" id="sells">Sells: —</span>
+  </div>
+
+  <p class="muted">
+    5m volume: <strong id="vol5">—</strong>
+    · 1h change: <strong id="change1">—</strong>
+  </p>
+
+  <p class="note">
+    This is NOT true net USD inflow/outflow or the textbook
+    Money Flow Index oscillator. Public data supplies buy/sell
+    counts and total volume, not dollar volume by trade side.
+    It estimates pressure from transaction counts on the
+    selected pool, and can be distorted by bots or trade size.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Investment & take-profit calculator</h2>
+
+  <div class="inputs">
+    <label>
+      <span class="label">Entry price ($)</span>
+      <input id="entry" type="number" min="0" step="any"
+        placeholder="0.00001">
+    </label>
+    <label>
+      <span class="label">Amount invested ($)</span>
+      <input id="amount" type="number" min="0" step="any"
+        placeholder="100">
+    </label>
+  </div>
+
+  <div class="targets">
+    <div class="target">
+      <span class="label">2×</span>
+      <strong id="t2">—</strong>
+    </div>
+    <div class="target">
+      <span class="label">4×</span>
+      <strong id="t4">—</strong>
+    </div>
+    <div class="target">
+      <span class="label">6×</span>
+      <strong id="t6">—</strong>
+    </div>
+    <div class="target">
+      <span class="label">10×</span>
+      <strong id="t10">—</strong>
+    </div>
+  </div>
+
+  <p>Current estimated value:
+    <strong id="value">—</strong>
+  </p>
+  <p>Unrealized P/L:
+    <strong id="pnl">—</strong>
+  </p>
+
+  <p class="note">
+    Calculations assume the amount invested was used to purchase
+    tokens at your entry price. Excludes fees, slippage, taxes
+    and liquidity effects. Targets are not price predictions.
+  </p>
+</section>
+
+</div>
+
+<section class="panel" style="margin-top:17px">
+  <h2>Price alerts</h2>
+
+  <div class="inputs">
+    <label>
+      <span class="label">Alert above ($)</span>
+      <input id="above" type="number" min="0" step="any"
+        placeholder="Upper target">
+    </label>
+    <label>
+      <span class="label">Alert below ($)</span>
+      <input id="below" type="number" min="0" step="any"
+        placeholder="Lower risk threshold">
+    </label>
+  </div>
+
+  <div class="flex" style="margin-top:13px">
+    <button id="enable">Enable notifications</button>
+    <button id="clear" style="background:#303955">
+      Clear levels
+    </button>
+  </div>
+
+  <div class="status" id="alertstatus">
+    Notifications require browser permission. Alerts work
+    only while this page is open and running; they may pause
+    when your device sleeps.
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Whale / wallet intelligence
+    <span class="label">COMING WITH BACKEND</span>
+  </h2>
+
+  <div class="disabled">
+    <strong>Not available in the single-file MVP</strong>
+    <p class="note">
+      Largest token holders, wallet-by-wallet buys/sells,
+      historical entry prices and realized profits require
+      indexed on-chain transactions and cost-basis
+      reconstruction. They cannot be reliably calculated
+      from DEX Screener's public pair API.
+      This section is intentionally not populated with
+      invented data.
+    </p>
+    <p class="note">
+      Later: add a secure backend and provider such as
+      Helius or Bitquery. Never put a secret API key
+      in GitHub Pages HTML.
+    </p>
+  </div>
+</section>
+
+<p class="note">
+  Crimson Intel is a research dashboard, not investment advice.
+  Market data may be delayed, incomplete, or manipulated.
+  No wallet connection or private keys are needed.
+</p>
+
 </main>
 
 <script>
 (() => {
+  'use strict';
+
   const $ = id => document.getElementById(id);
-  const state = { provider:null, address:null, apiKey:"", busy:false };
-  const publicRpc = "https://api.mainnet-beta.solana.com";
 
-  function notice(message,type="") {
-    $("notice").textContent = message;
-    $("notice").className = "show " + type;
-  }
-  function clearNotice() {
-    $("notice").textContent = "";
-    $("notice").className = "";
-  }
-  function short(s) {
-    return s ? s.slice(0,5) + "…" + s.slice(-5) : "—";
-  }
-  function rpcUrl() {
-    return state.apiKey
-      ? "https://mainnet.helius-rpc.com/?api-key=" + encodeURIComponent(state.apiKey)
-      : publicRpc;
-  }
-  async function rpc(method,params) {
-    const res = await fetch(rpcUrl(),{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})
-    });
-    if(!res.ok) throw new Error("RPC HTTP " + res.status);
-    const json = await res.json();
-    if(json.error) throw new Error(json.error.message || "RPC error");
-    return json.result;
-  }
-  function setButtons() {
-    $("connect").disabled = state.busy || !!state.address;
-    $("refresh").disabled = state.busy || !state.address;
-    $("disconnect").disabled = state.busy || !state.address;
-    $("connect").textContent = state.busy ? "Please wait…" : "Connect Phantom";
-  }
-  function fmt(n,max=6) {
-    return Number(n).toLocaleString(undefined,{maximumFractionDigits:max});
-  }
-  function safe(s) {
-    return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  }
-  const addressUrl = a => "https://explorer.solana.com/address/" + encodeURIComponent(a);
-  const txUrl = s => "https://explorer.solana.com/tx/" + encodeURIComponent(s);
+  let mint = '';
+  let pair = null;
+  let price = 0;
+  let interval = null;
+  let busy = false;
+  let upTriggered = false;
+  let downTriggered = false;
 
-  async function connect() {
-    clearNotice();
-    const p = window.phantom?.solana || window.solana;
-    if(!p?.isPhantom) {
-      notice("Phantom was not detected. On your phone, open the Phantom app, tap its browser/search bar, and open your GitHub Pages website from there. Safari and Chrome alone do not provide Phantom's injected wallet connection.","error");
-      return;
+  const usd = n =>
+    Number.isFinite(Number(n))
+      ? new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          notation: Math.abs(Number(n)) >= 1e6
+            ? 'compact'
+            : 'standard',
+          maximumFractionDigits: 2
+        }).format(Number(n))
+      : '—';
+
+  const px = n => {
+    n = Number(n);
+    return !Number.isFinite(n)
+      ? '—'
+      : n === 0
+      ? '$0'
+      : n >= 1
+      ? '$' + n.toLocaleString('en-US', {
+          maximumFractionDigits: 5
+        })
+      : '$' + n.toPrecision(6);
+  };
+
+  const pct = n =>
+    Number.isFinite(Number(n))
+      ? (Number(n) > 0 ? '+' : '') +
+        Number(n).toFixed(2) + '%'
+      : '—';
+
+  const status = (s, err = false) => {
+    $('status').textContent = s;
+    $('status').style.color = err
+      ? '#ff6977'
+      : '#a5aecb';
+  };
+
+  function targets() {
+    const entry = Number($('entry').value);
+    const amt = Number($('amount').value);
+
+    for (const x of [2, 4, 6, 10]) {
+      $('t' + x).textContent =
+        entry > 0 ? px(entry * x) : '—';
     }
-    state.busy = true; setButtons();
+
+    if (entry > 0 && amt > 0 && price > 0) {
+      const value = amt * price / entry;
+      const profit = value - amt;
+
+      $('value').textContent = usd(value);
+      $('pnl').textContent =
+        (profit >= 0 ? '+' : '') +
+        usd(profit) +
+        ' (' + pct(profit / amt * 100) + ')';
+
+      $('pnl').style.color =
+        profit >= 0 ? '#4ee0a9' : '#ff6977';
+    } else {
+      $('value').textContent = '—';
+      $('pnl').textContent = '—';
+    }
+  }
+
+  function notify(title, body) {
+    $('alertstatus').textContent =
+      title + ' — ' + body;
+
+    if (
+      'Notification' in window &&
+      Notification.permission === 'granted'
+    ) {
+      try {
+        new Notification(title, { body });
+      } catch (e) {}
+    }
+  }
+
+  function alerts() {
+    const above = Number($('above').value);
+    const below = Number($('below').value);
+
+    if (
+      above > 0 &&
+      price >= above &&
+      !upTriggered
+    ) {
+      notify(
+        'Crimson Intel: upper target reached',
+        px(price) + ' is at/above ' + px(above)
+      );
+      upTriggered = true;
+    }
+
+    if (above > 0 && price < above) {
+      upTriggered = false;
+    }
+
+    if (
+      below > 0 &&
+      price <= below &&
+      !downTriggered
+    ) {
+      notify(
+        'Crimson Intel: downside threshold reached',
+        px(price) + ' is at/below ' + px(below)
+      );
+      downTriggered = true;
+    }
+
+    if (below > 0 && price > below) {
+      downTriggered = false;
+    }
+  }
+
+  async function refresh() {
+    if (!mint || busy) return;
+
+    busy = true;
+    $('track').disabled = true;
+
     try {
-      const result = await p.connect();
-      const address = result.publicKey?.toString() || p.publicKey?.toString();
-      if(!address) throw new Error("Phantom did not return a public address.");
+      const res = await fetch(
+        'https://api.dexscreener.com/token-pairs/v1/solana/' +
+        encodeURIComponent(mint),
+        { cache: 'no-store' }
+      );
 
-      // Sign a readable message only; this is not a blockchain transaction.
-      const message = "Sign in to Crimson Intel\nWallet: " + address +
-        "\nPurpose: confirm wallet ownership only.\nNo transaction is being requested.";
-      if(typeof p.signMessage !== "function") throw new Error("Message signing is unavailable in this wallet.");
-      await p.signMessage(new TextEncoder().encode(message),"utf8");
+      if (!res.ok) {
+        throw Error('API returned HTTP ' + res.status);
+      }
 
-      state.provider = p;
-      state.address = address;
-      $("status").textContent = "Wallet connected";
-      $("wallet").textContent = short(address);
-      $("addresslink").innerHTML = '<a target="_blank" rel="noopener noreferrer" href="' + addressUrl(address) + '">View on Solana Explorer ↗</a>';
-      await loadDashboard();
-    } catch(e) {
-      notice(e?.code === 4001 ? "You rejected the connection or signature." : (e.message || "Wallet connection failed."),"error");
+      const pairs = await res.json();
+
+      if (!Array.isArray(pairs) || !pairs.length) {
+        throw Error(
+          'No DEX pool found for this token mint.'
+        );
+      }
+
+      pair =
+        pairs
+          .filter(p => p.baseToken?.address === mint)
+          .sort(
+            (a, b) =>
+              (Number(b.liquidity?.usd) || 0) -
+              (Number(a.liquidity?.usd) || 0)
+          )[0] ||
+        pairs.sort(
+          (a, b) =>
+            (Number(b.liquidity?.usd) || 0) -
+            (Number(a.liquidity?.usd) || 0)
+        )[0];
+
+      const base =
+        pair.baseToken?.address === mint
+          ? pair.baseToken
+          : pair.quoteToken;
+
+      price = Number(pair.priceUsd) || 0;
+
+      $('name').textContent =
+        (base?.name || 'Unknown token') +
+        ' (' + (base?.symbol || '?') + ')';
+
+      $('pool').textContent =
+        'Selected pool: ' +
+        (pair.dexId || 'DEX') +
+        ' · ' +
+        (pair.pairAddress || 'unknown');
+
+      $('price').textContent = px(price);
+      $('change').textContent =
+        '24h: ' + pct(pair.priceChange?.h24);
+
+      $('cap').textContent =
+        usd(pair.marketCap ?? pair.fdv);
+
+      $('fdv').textContent =
+        'FDV: ' + usd(pair.fdv);
+
+      $('liq').textContent =
+        usd(pair.liquidity?.usd);
+
+      $('vol').textContent =
+        usd(pair.volume?.h24);
+
+      const tx24 = pair.txns?.h24 || {};
+
+      $('tx24').textContent =
+        (tx24.buys || 0) +
+        ' buys / ' +
+        (tx24.sells || 0) +
+        ' sells';
+
+      const tx = pair.txns?.m5 || {};
+      const buys = Number(tx.buys) || 0;
+      const sells = Number(tx.sells) || 0;
+      const total = buys + sells;
+      const share = total
+        ? 100 * buys / total
+        : 50;
+
+      $('score').textContent =
+        total ? share.toFixed(1) + '/100' : '—';
+
+      $('signal').textContent =
+        !total
+          ? 'NO DATA'
+          : share >= 60
+          ? 'BUY PRESSURE'
+          : share <= 40
+          ? 'SELL PRESSURE'
+          : 'MIXED';
+
+      $('signal').style.color =
+        share >= 60
+          ? '#4ee0a9'
+          : share <= 40
+          ? '#ff6977'
+          : '#ffd166';
+
+      $('buybar').style.width = share + '%';
+      $('sellbar').style.width =
+        (100 - share) + '%';
+
+      $('buys').textContent = 'Buys: ' + buys;
+      $('sells').textContent = 'Sells: ' + sells;
+
+      $('vol5').textContent =
+        usd(pair.volume?.m5);
+
+      $('change1').textContent =
+        pct(pair.priceChange?.h1);
+
+      const url =
+        'https://dexscreener.com/solana/' +
+        encodeURIComponent(
+          pair.pairAddress || mint
+        );
+
+      $('dexlink').href = pair.url || url;
+
+      if (
+        $('chart').dataset.pair !==
+        pair.pairAddress
+      ) {
+        $('chart').src =
+          url +
+          '?embed=1&theme=dark&trades=0&info=0';
+
+        $('chart').dataset.pair =
+          pair.pairAddress || mint;
+      }
+
+      targets();
+      alerts();
+
+      status(
+        'Updated ' +
+        new Date().toLocaleTimeString() +
+        ' · next update in ~20 seconds.'
+      );
+    } catch (e) {
+      status(
+        'Could not update: ' + e.message,
+        true
+      );
     } finally {
-      state.busy = false; setButtons();
+      busy = false;
+      $('track').disabled = false;
     }
   }
 
-  async function loadTokens(address) {
-    const r = await rpc("getTokenAccountsByOwner",[
-      address,
-      {programId:"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"},
-      {encoding:"jsonParsed",commitment:"confirmed"}
-    ]);
-    return (r.value || []).map(row => {
-      const info = row.account?.data?.parsed?.info;
-      const amount = info?.tokenAmount;
-      return {mint:info?.mint || "", amount:Number(amount?.uiAmountString ?? amount?.uiAmount ?? 0), decimals:Number(amount?.decimals ?? 0)};
-    }).filter(t=>t.amount>0).sort((a,b)=>b.amount-a.amount);
-  }
+  function start() {
+    const m = $('mint').value.trim();
 
-  async function loadHistory(address) {
-    return await rpc("getSignaturesForAddress",[address,{limit:10,commitment:"confirmed"}]) || [];
-  }
-
-  function renderTokens(list) {
-    $("count").textContent = String(list.length);
-    if(!list.length) {
-      $("tokens").innerHTML = '<div class="empty">No non-zero SPL token balances found.</div>';
+    if (
+      !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m)
+    ) {
+      status(
+        'Enter a valid-looking Solana mint address (base58, 32–44 characters).',
+        true
+      );
       return;
     }
-    const rows = list.map(t=>`<tr>
-      <td><a target="_blank" rel="noopener noreferrer" href="${addressUrl(t.mint)}">${safe(short(t.mint))} ↗</a></td>
-      <td>${fmt(t.amount,8)}</td><td>${t.decimals}</td>
-    </tr>`).join("");
-    $("tokens").innerHTML = '<div class="tablewrap"><table><thead><tr><th>Token mint</th><th>Balance</th><th>Decimals</th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="small">Token names and dollar prices are not resolved yet; mint addresses identify each token.</p>';
+
+    mint = m;
+    upTriggered = false;
+    downTriggered = false;
+
+    if (interval) {
+      clearInterval(interval);
+    }
+
+    $('chart').dataset.pair = '';
+
+    refresh();
+
+    interval = setInterval(() => {
+      if (!document.hidden) refresh();
+    }, 20000);
   }
 
-  function renderHistory(list) {
-    $("txcount").textContent = String(list.length);
-    if(!list.length) {
-      $("history").innerHTML = '<div class="empty">No recent transactions returned.</div>';
+  $('track').onclick = start;
+
+  $('mint').addEventListener(
+    'keydown',
+    e => {
+      if (e.key === 'Enter') start();
+    }
+  );
+
+  for (const id of ['entry', 'amount']) {
+    $(id).addEventListener(
+      'input',
+      targets
+    );
+  }
+
+  for (const id of ['above', 'below']) {
+    $(id).addEventListener(
+      'input',
+      () => {
+        upTriggered = false;
+        downTriggered = false;
+      }
+    );
+  }
+
+  $('enable').onclick = async () => {
+    if (!('Notification' in window)) {
+      $('alertstatus').textContent =
+        'This browser does not support notifications.';
       return;
     }
-    const rows = list.map(t=>{
-      const date = t.blockTime ? new Date(t.blockTime*1000).toLocaleString() : "Time unavailable";
-      return `<tr><td><a target="_blank" rel="noopener noreferrer" href="${txUrl(t.signature)}">${safe(short(t.signature))} ↗</a></td>
-      <td>${safe(date)}</td><td>${t.err ? '<span class="negative">Failed</span>' : '<span class="positive">Confirmed</span>'}</td></tr>`;
-    }).join("");
-    $("history").innerHTML = '<div class="tablewrap"><table><thead><tr><th>Transaction</th><th>Date</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
-  }
 
-  async function loadDashboard() {
-    if(!state.address) return;
-    clearNotice();
-    state.busy = true; setButtons();
-    $("tokens").innerHTML = '<div class="empty">Loading token balances…</div>';
-    $("history").innerHTML = '<div class="empty">Loading transactions…</div>';
     try {
-      const [balance,tokens,history] = await Promise.all([
-        rpc("getBalance",[state.address,{commitment:"confirmed"}]),
-        loadTokens(state.address),
-        loadHistory(state.address)
-      ]);
-      $("sol").textContent = fmt((balance.value || 0)/1e9,6) + " SOL";
-      renderTokens(tokens);
-      renderHistory(history);
-      notice("Wallet data refreshed.","good");
-    } catch(e) {
-      notice("Could not load wallet data: " + (e.message || "RPC request failed") + ". Try a Helius key, then refresh.","error");
-      $("tokens").innerHTML = '<div class="empty">Could not load tokens. Check the RPC settings.</div>';
-      $("history").innerHTML = '<div class="empty">Could not load history. Check the RPC settings.</div>';
-    } finally {
-      state.busy = false; setButtons();
-    }
-  }
+      const result =
+        await Notification.requestPermission();
 
-  function disconnect() {
-    try { state.provider?.disconnect?.(); } catch(e) {}
-    state.provider = null; state.address = null;
-    $("status").textContent = "Wallet disconnected";
-    $("wallet").textContent = "—";
-    $("addresslink").textContent = "Not connected";
-    $("sol").textContent = "—"; $("count").textContent = "—"; $("txcount").textContent = "—";
-    $("tokens").innerHTML = '<div class="empty">Connect Phantom to load your tokens.</div>';
-    $("history").innerHTML = '<div class="empty">Connect Phantom to load transaction history.</div>';
-    clearNotice(); setButtons();
-  }
-
-  $("connect").addEventListener("click",connect);
-  $("refresh").addEventListener("click",loadDashboard);
-  $("disconnect").addEventListener("click",disconnect);
-  $("savekey").addEventListener("click",()=>{
-    state.apiKey = $("helius").value.trim();
-    notice(state.apiKey ? "Helius key applied to this page session. Tap Refresh to use it." : "Helius key cleared; public Solana RPC will be used.","good");
-  });
-  window.addEventListener("load",()=>{
-    const p = window.phantom?.solana || window.solana;
-    if(p?.isPhantom) {
-      p.on?.("disconnect",disconnect);
-      p.on?.("accountChanged",key=>{
-        if(!key) disconnect();
-        else {
-          state.address = key.toString();
-          $("wallet").textContent = short(state.address);
-          $("addresslink").innerHTML = '<a target="_blank" rel="noopener noreferrer" href="' + addressUrl(state.address) + '">View on Solana Explorer ↗</a>';
-          loadDashboard();
-        }
-      });
+      $('alertstatus').textContent =
+        result === 'granted'
+          ? 'Notifications enabled while this page is running.'
+          : 'Notifications not enabled. Check browser settings.';
+    } catch (e) {
+      $('alertstatus').textContent =
+        'Notification permission unavailable on this browser.';
     }
-  });
-  setButtons();
+  };
+
+  $('clear').onclick = () => {
+    $('above').value = '';
+    $('below').value = '';
+
+    upTriggered = false;
+    downTriggered = false;
+
+    $('alertstatus').textContent =
+      'Alert levels cleared.';
+  };
+
+  document.addEventListener(
+    'visibilitychange',
+    () => {
+      if (!document.hidden) refresh();
+    }
+  );
+
+  const q = new URLSearchParams(
+    location.search
+  ).get('token');
+
+  if (q) {
+    $('mint').value = q;
+    start();
+  }
 })();
 </script>
+
 </body>
 </html>
-
