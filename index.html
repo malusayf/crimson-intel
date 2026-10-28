@@ -2923,5 +2923,1774 @@ a {
 })();
 </script>
 
+<!-- CRIMSON GROWTH SCOUT V2 — PASTE ABOVE THE FINAL </body> TAG -->
+<script>
+/* Crimson Intel • Growth Scout V2
+ * Add-on for the existing Crimson Intel GitHub Pages dashboard.
+ * Discovery sources: public DefiLlama protocol directory + GitHub Search API.
+ * X recent posts: manual live search links, NOT automated ingestion.
+ * No private keys or credentials; all DOM data rendered safely.
+ */
+(() => {
+  'use strict';
+  if (document.getElementById('ciGrowthScout')) return;
+
+  const $ = id => document.getElementById(id);
+  const WATCH_KEY = 'crimson-growth-scout-watchlist-v2';
+  const ONE_DAY = 86400000;
+  const now = () => Date.now();
+
+  const css = `
+    #ciGrowthScout {
+      background: #131a2ee8;
+      color: #f2f3ff;
+      border: 1px solid #303955;
+      border-radius: 17px;
+      padding: 20px;
+      margin: 18px 0;
+      font: inherit;
+    }
+
+    #ciGrowthScout * {
+      box-sizing: border-box;
+    }
+
+    #ciGrowthScout [hidden] {
+      display: none !important;
+    }
+
+    #ciGrowthScout h2 {
+      font-size: 21px;
+      margin: 0 0 8px;
+    }
+
+    #ciGrowthScout h3 {
+      font-size: 15px;
+      margin: 0 0 7px;
+    }
+
+    #ciGrowthScout p {
+      color: #a5aecb;
+      line-height: 1.55;
+      margin: 9px 0;
+    }
+
+    #ciGrowthScout .gs-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 16px 0;
+    }
+
+    #ciGrowthScout label {
+      font-size: 12px;
+      color: #bec9e8;
+      font-weight: 650;
+      display: block;
+    }
+
+    #ciGrowthScout input,
+    #ciGrowthScout select {
+      display: block;
+      margin-top: 6px;
+      width: 100%;
+      min-width: 0;
+      padding: 11px;
+      border: 1px solid #465071;
+      background: #090e20;
+      border-radius: 9px;
+      color: #fff;
+      font: inherit;
+    }
+
+    #ciGrowthScout button {
+      color: #fff;
+      background: linear-gradient(110deg, #f64b82, #8657ef);
+      border: 0;
+      border-radius: 9px;
+      padding: 10px 13px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    #ciGrowthScout button.gs-alt {
+      background: #293450;
+    }
+
+    #ciGrowthScout button:disabled {
+      opacity: .55;
+      cursor: wait;
+    }
+
+    #ciGrowthScout .gs-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 12px 0;
+    }
+
+    #ciGrowthScout .gs-cards {
+      display: grid;
+      grid-template-columns:
+        repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    #ciGrowthScout .gs-card {
+      background: #0a1124;
+      border: 1px solid #293450;
+      border-radius: 13px;
+      padding: 15px;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    #ciGrowthScout .gs-card p {
+      font-size: 13px;
+    }
+
+    #ciGrowthScout .gs-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 8px 0;
+    }
+
+    #ciGrowthScout .gs-tag {
+      background: #25314d;
+      color: #dfe6ff;
+      border-radius: 30px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    #ciGrowthScout .gs-score {
+      color: #ffd166;
+      font-weight: 800;
+    }
+
+    #ciGrowthScout a {
+      color: #a9b8ff;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      overflow-wrap: anywhere;
+    }
+
+    #ciGrowthScout .gs-status {
+      font-size: 13px;
+      color: #a5aecb;
+      min-height: 21px;
+    }
+
+    #ciGrowthScout .gs-watch {
+      background: #0a1124;
+      border: 1px solid #293450;
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 16px;
+    }
+
+    #ciGrowthScout .gs-watch-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      border-top: 1px solid #303955;
+      padding: 9px 0;
+    }
+
+    #ciGrowthScout .gs-watch-row:first-child {
+      border-top: 0;
+    }
+
+    #ciGrowthScout .gs-note {
+      font-size: 12px !important;
+      color: #a5aecb !important;
+    }
+
+    #ciGrowthScout .gs-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 850px) {
+      #ciGrowthScout .gs-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 530px) {
+      #ciGrowthScout {
+        padding: 14px;
+      }
+
+      #ciGrowthScout .gs-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;
+
+  const style = document.createElement('style');
+  style.textContent = css;
+  document.head.append(style);
+
+  // ====================================
+  // GROWTH SCOUT INTERFACE
+  // ====================================
+
+  const section = document.createElement('section');
+  section.id = 'ciGrowthScout';
+
+  section.innerHTML = `
+    <div class="gs-header">
+      <h2>
+        🔎 Crimson Growth Scout
+        <span class="gs-tag">V2 · BETA</span>
+      </h2>
+      <span class="gs-tag">Worldwide discovery</span>
+    </div>
+
+    <p>
+      Discover potential
+      <strong>utility-project outreach leads</strong>
+      instead of entering projects one at a time.
+      Find emerging DeFi, wallet, AI, RWA and
+      infrastructure projects using live public directories.
+    </p>
+
+    <div class="gs-grid">
+
+      <label>
+        Focus
+        <select id="gsSector">
+          <option value="all">All utility sectors</option>
+          <option value="DeFi">DeFi</option>
+          <option value="Wallet">Crypto wallets</option>
+          <option value="AI">Crypto + AI</option>
+          <option value="RWA">Real-world assets</option>
+          <option value="Infrastructure">Infrastructure</option>
+        </select>
+      </label>
+
+      <label>
+        Discovery source
+        <select id="gsSource">
+          <option value="all">All available sources</option>
+          <option value="defillama">DeFiLlama protocols</option>
+          <option value="github">New GitHub repositories</option>
+        </select>
+      </label>
+
+      <label>
+        Project stage
+        <select id="gsStage">
+          <option value="all">Any stage</option>
+          <option value="early" selected>
+            New listing / small footprint
+          </option>
+          <option value="active">
+            Recent development / growth
+          </option>
+        </select>
+      </label>
+
+      <label>
+        New-code window
+        <select id="gsDays">
+          <option value="30">Last 30 days</option>
+          <option value="90" selected>Last 90 days</option>
+          <option value="180">Last 180 days</option>
+        </select>
+      </label>
+
+    </div>
+
+    <label>
+      Find within results
+      <input
+        id="gsSearch"
+        type="search"
+        placeholder="Search project name or description..."
+      >
+    </label>
+
+    <div class="gs-actions">
+      <button type="button" id="gsFind">
+        Find growth candidates
+      </button>
+
+      <button type="button" class="gs-alt" id="gsXLatest">
+        Search latest X posts ↗
+      </button>
+
+      <button type="button" class="gs-alt" id="gsXJobs">
+        Find ambassador posts on X ↗
+      </button>
+
+      <button type="button" class="gs-alt" id="gsExport">
+        Export watchlist CSV
+      </button>
+    </div>
+
+    <p
+      class="gs-status"
+      id="gsStatus"
+      role="status"
+      aria-live="polite"
+    >
+      Choose your filters and press Find growth candidates.
+    </p>
+
+    <p class="gs-note">
+      A lead score ranks observable outreach signals,
+      not a project's legitimacy, quality, investment
+      potential, or willingness to hire. "New" GitHub
+      means repository creation date; "new" DeFiLlama
+      means directory listing date when supplied.
+      Country and hiring status are not independently verified.
+    </p>
+
+    <div class="gs-cards" id="gsCards"></div>
+
+    <div class="gs-watch">
+      <h3>
+        ⭐ Outreach watchlist
+        <span id="gsCount"></span>
+      </h3>
+
+      <p class="gs-note">
+        Saved only in this browser.
+        No emails or messages are sent automatically.
+      </p>
+
+      <div id="gsWatchRows"></div>
+    </div>
+  `;
+
+  // ====================================
+  // INSERT INTO CRIMSON INTEL
+  // ====================================
+
+  const parent = document.querySelector('main');
+
+  if (!parent) return;
+
+  const projectIntel = $('crimsonProjectIntel');
+
+  if (projectIntel) {
+    projectIntel.insertAdjacentElement('beforebegin', section);
+  } else {
+    parent.prepend(section);
+  }
+
+  let leads = [];
+  let busy = false;
+  let lastRun = null;
+  let scanIssues = [];
+
+  // ====================================
+  // HELPER FUNCTIONS
+  // ====================================
+
+  const text = (tag, value, cls) => {
+    const node = document.createElement(tag);
+
+    if (value != null) {
+      node.textContent = String(value);
+    }
+
+    if (cls) {
+      node.className = cls;
+    }
+
+    return node;
+  };
+
+  const safeURL = raw => {
+    try {
+      const u = new URL(String(raw || '').trim());
+
+      return u.protocol === 'https:' ? u.href : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const ageDays = date => {
+    let n;
+
+    if (typeof date === 'number') {
+      n = date > 1e12 ? date : date * 1000;
+    } else {
+      n = Date.parse(date);
+    }
+
+    return Number.isFinite(n) &&
+      n <= now() + ONE_DAY &&
+      n >= 946684800000
+      ? Math.max(0, Math.floor((now() - n) / ONE_DAY))
+      : null;
+  };
+
+  const signed = n => {
+    const v = Number(n);
+
+    return n == null || !Number.isFinite(v)
+      ? 'Unavailable'
+      : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+  };
+
+  const dollars = n => {
+    const v = Number(n);
+
+    return n == null || !Number.isFinite(v)
+      ? 'Unknown'
+      : '$' + Intl.NumberFormat('en-US', {
+          notation: 'compact',
+          maximumFractionDigits: 2
+        }).format(v);
+  };
+
+  const clamp = x =>
+    Math.max(0, Math.min(100, Math.round(x)));
+
+  const status = (msg, isError = false) => {
+    $('gsStatus').textContent = msg;
+    $('gsStatus').style.color =
+      isError ? '#ff929f' : '#a5aecb';
+  };
+
+  // ====================================
+  // PROJECT CATEGORY DETECTION
+  // ====================================
+
+  function classify(s) {
+    const c = String(s || '').toLowerCase();
+
+    if (/\brwa\b|real.world|tokeniz/.test(c)) {
+      return 'RWA';
+    }
+
+    if (/\bwallet\b|account.abstraction|smart.account/.test(c)) {
+      return 'Wallet';
+    }
+
+    if (
+      /\bai\b|artificial.intelligence|ai.agent|autonomous.agent|\bllm\b/.test(c)
+    ) {
+      return 'AI';
+    }
+
+    if (
+      /infrastructure|oracle|cross.chain|layer.2|rollup|data.availability|indexer|blockchain|web3|sdk|bridge|interoperab/.test(c)
+    ) {
+      return 'Infrastructure';
+    }
+
+    if (
+      /defi|dex|lending|yield|staking|stablecoin|derivative|exchange|perp|liquid|prediction|farm|cdp|options|vault|borrow|swap|trading|revenue|insurance/.test(c)
+    ) {
+      return 'DeFi';
+    }
+
+    return null;
+  }
+
+  function xLink(handle) {
+    if (typeof handle !== 'string') return null;
+
+    const h = handle.replace(/^@/, '').trim();
+
+    return /^[A-Za-z0-9_]{1,15}$/.test(h)
+      ? 'https://x.com/' + h
+      : null;
+  }
+
+  // ====================================
+  // LEAD OPPORTUNITY SCORING
+  // ====================================
+
+  function scoreLead(p) {
+    let score = 32;
+    const reasons = [];
+
+    if (p.kind === 'github') {
+
+      if (p.age != null && p.age <= 30) {
+        score += 22;
+        reasons.push(
+          'Repository created in the last 30 days'
+        );
+      } else if (p.age != null && p.age <= 90) {
+        score += 15;
+        reasons.push(
+          'Repository created in the last 90 days'
+        );
+      } else if (p.age != null && p.age <= 180) {
+        score += 8;
+        reasons.push(
+          'Repository created in the last 180 days'
+        );
+      }
+
+      if (p.updated != null && p.updated <= 14) {
+        score += 18;
+        reasons.push(
+          'Public code pushed within 14 days'
+        );
+      } else if (p.updated != null && p.updated <= 30) {
+        score += 10;
+        reasons.push(
+          'Public code pushed within 30 days'
+        );
+      }
+
+      if (p.stars >= 2 && p.stars < 100) {
+        score += 8;
+        reasons.push(
+          'Early public GitHub attention'
+        );
+      }
+
+      if (p.website) {
+        score += 7;
+        reasons.push(
+          'Project website supplied in repository metadata'
+        );
+      }
+
+      if (p.description && p.description.length >= 35) {
+        score += 5;
+      }
+
+    } else {
+
+      if (p.age != null && p.age <= 30) {
+        score += 19;
+        reasons.push(
+          'Listed on DeFiLlama in the last 30 days'
+        );
+      } else if (p.age != null && p.age <= 90) {
+        score += 12;
+        reasons.push(
+          'Listed on DeFiLlama in the last 90 days'
+        );
+      }
+
+      if (
+        p.tvl != null &&
+        p.tvl > 0 &&
+        p.tvl < 2e6
+      ) {
+        score += 18;
+        reasons.push(
+          'Small tracked TVL (under $2m)'
+        );
+      } else if (
+        p.tvl != null &&
+        p.tvl < 20e6 &&
+        p.tvl >= 2e6
+      ) {
+        score += 10;
+        reasons.push(
+          'Tracked TVL under $20m'
+        );
+      }
+
+      if (
+        p.change7 != null &&
+        p.change7 > 3 &&
+        p.change7 < 500
+      ) {
+        score += 14;
+        reasons.push(
+          '7-day TVL growth (not necessarily users)'
+        );
+      }
+
+      if (p.website) {
+        score += 5;
+        reasons.push(
+          'Website listed in protocol directory'
+        );
+      }
+
+      if (p.x) {
+        score += 5;
+        reasons.push(
+          'X account listed in protocol directory'
+        );
+      }
+    }
+
+    p.score = clamp(score);
+
+    p.reasons = reasons.length
+      ? reasons
+      : [
+          'Listed in a public discovery source; growth need unverified'
+        ];
+
+    return p;
+  }
+
+  // ====================================
+  // PUBLIC API FETCH
+  // ====================================
+
+  async function getJSON(url, timeout = 25000) {
+    const controller = new AbortController();
+
+    const timer = setTimeout(
+      () => controller.abort(),
+      timeout
+    );
+
+    try {
+      const r = await fetch(url, {
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: {
+          Accept: 'application/json'
+        }
+      });
+
+      if (!r.ok) {
+        throw Error(
+          'HTTP ' + r.status +
+          (
+            r.status === 403 || r.status === 429
+              ? ' (rate limit or access restriction)'
+              : ''
+          )
+        );
+      }
+
+      return await r.json();
+
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // ====================================
+  // DEFILLAMA PROJECT DISCOVERY
+  // ====================================
+
+  async function fromDefiLlama() {
+    const data = await getJSON(
+      'https://api.llama.fi/protocols'
+    );
+
+    if (!Array.isArray(data)) {
+      throw Error(
+        'Invalid protocol directory response'
+      );
+    }
+
+    const found = [];
+
+    for (const d of data) {
+      const sector = classify(
+        String(d.category || '') +
+        ' ' +
+        String(d.description || '')
+      );
+
+      if (!sector || !d.name) continue;
+
+      const tvl =
+        d.tvl == null ? null : Number(d.tvl);
+
+      if (
+        tvl != null &&
+        (!Number.isFinite(tvl) || tvl < 0)
+      ) {
+        continue;
+      }
+
+      const change7 =
+        d.change_7d == null
+          ? null
+          : Number(d.change_7d);
+
+      const listed = ageDays(d.listedAt);
+
+      const slug = String(d.slug || d.name)
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .slice(0, 120);
+
+      const item = {
+        id: 'llama:' + String(d.id ?? slug),
+        kind: 'defillama',
+        name: String(d.name).slice(0, 90),
+        sector,
+        category: String(
+          d.category || 'Uncategorized'
+        ).slice(0, 80),
+        description: String(
+          d.description || ''
+        ).slice(0, 300),
+        website: safeURL(d.url),
+        x: xLink(d.twitter),
+        evidence:
+          'https://defillama.com/protocol/' +
+          encodeURIComponent(slug),
+        github: null,
+        age: listed,
+        updated: null,
+        tvl,
+        change7: Number.isFinite(change7)
+          ? change7
+          : null,
+        chains: Array.isArray(d.chains)
+          ? d.chains
+              .filter(x => typeof x === 'string')
+              .slice(0, 5)
+          : [],
+        stars: null
+      };
+
+      found.push(scoreLead(item));
+    }
+
+    return found;
+  }
+
+  // ====================================
+  // GITHUB PROJECT DISCOVERY
+  // ====================================
+
+  function repoSector(d, hint) {
+    const combined = [
+      d.name,
+      d.description,
+      Array.isArray(d.topics)
+        ? d.topics.join(' ')
+        : '',
+      hint
+    ].join(' ');
+
+    return classify(combined) ||
+      classify(hint) ||
+      'Infrastructure';
+  }
+
+  async function fromGitHub(days) {
+    const cutoff = new Date(
+      now() - days * ONE_DAY
+    ).toISOString().slice(0, 10);
+
+    const pushed = new Date(
+      now() - 45 * ONE_DAY
+    ).toISOString().slice(0, 10);
+
+    const topics = [
+      'defi',
+      'web3 wallet',
+      'blockchain ai',
+      'rwa tokenization'
+    ];
+
+    const calls = topics.map(async hint => {
+      const query =
+        `${hint} in:name,description ` +
+        `created:>=${cutoff} ` +
+        `pushed:>=${pushed} ` +
+        `fork:false archived:false`;
+
+      const endpoint =
+        'https://api.github.com/search/repositories?' +
+        new URLSearchParams({
+          q: query,
+          sort: 'updated',
+          order: 'desc',
+          per_page: '25'
+        });
+
+      const response = await getJSON(
+        endpoint,
+        20000
+      );
+
+      return {
+        hint,
+        items: Array.isArray(response.items)
+          ? response.items
+          : []
+      };
+    });
+
+    const results = await Promise.allSettled(calls);
+    const failures = [];
+    const found = [];
+    const ids = new Set();
+
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+
+      if (result.status !== 'fulfilled') {
+        failures.push(
+          topics[i] + ': ' +
+          result.reason.message
+        );
+        continue;
+      }
+
+      for (const d of result.value.items) {
+        if (
+          !d?.full_name ||
+          ids.has(d.id) ||
+          d.fork ||
+          d.archived
+        ) {
+          continue;
+        }
+
+        ids.add(d.id);
+
+        const desc = String(
+          d.description || ''
+        );
+
+        const content = (
+          d.name + ' ' + desc
+        ).toLowerCase();
+
+        if (
+          /\b(awesome-list|tutorial|course|example|boilerplate|learning|leetcode|study-notes)\b/.test(content)
+        ) {
+          continue;
+        }
+
+        const item = {
+          id:
+            'github:' +
+            d.full_name.toLowerCase(),
+          kind: 'github',
+          name: String(d.name).slice(0, 90),
+          sector: repoSector(
+            d,
+            result.value.hint
+          ),
+          category: 'Open-source repository',
+          description: desc.slice(0, 300),
+          website: safeURL(d.homepage),
+          x: null,
+          github: safeURL(d.html_url),
+          evidence: safeURL(d.html_url),
+          age: ageDays(d.created_at),
+          updated: ageDays(d.pushed_at),
+          stars: Number(
+            d.stargazers_count
+          ) || 0,
+          chains: [],
+          tvl: null,
+          change7: null
+        };
+
+        found.push(scoreLead(item));
+      }
+    }
+
+    return {
+      found,
+      failures
+    };
+  }
+
+  // ====================================
+  // FILTER RESULTS
+  // ====================================
+
+  function passes(p) {
+    const sector = $('gsSector').value;
+    const stage = $('gsStage').value;
+
+    const query = $('gsSearch')
+      .value.trim()
+      .toLowerCase();
+
+    if (
+      sector !== 'all' &&
+      p.sector !== sector
+    ) {
+      return false;
+    }
+
+    if (stage === 'early') {
+      const early =
+        p.kind === 'github'
+          ? p.age != null && p.age <= 180
+          : (
+              (p.age != null && p.age <= 180) ||
+              (
+                p.tvl != null &&
+                p.tvl > 10000 &&
+                p.tvl < 2e6
+              )
+            );
+
+      if (!early) return false;
+    }
+
+    if (stage === 'active') {
+      const active =
+        p.kind === 'github'
+          ? p.updated != null &&
+            p.updated <= 30
+          : p.change7 != null &&
+            p.change7 > 0;
+
+      if (!active) return false;
+    }
+
+    return !query ||
+      [
+        p.name,
+        p.description,
+        p.sector,
+        p.category,
+        ...p.chains
+      ]
+      .join(' ')
+      .toLowerCase()
+      .includes(query);
+  }
+
+  // ====================================
+  // WATCHLIST STORAGE
+  // ====================================
+
+  function getSaved() {
+    try {
+      const a = JSON.parse(
+        localStorage.getItem(WATCH_KEY) || '[]'
+      );
+
+      return Array.isArray(a) ? a : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveSaved(a) {
+    try {
+      localStorage.setItem(
+        WATCH_KEY,
+        JSON.stringify(a.slice(0, 75))
+      );
+
+      return true;
+
+    } catch {
+      status(
+        'Local storage is blocked; watchlist cannot be saved.',
+        true
+      );
+
+      return false;
+    }
+  }
+
+  function inWatchlist(id) {
+    return getSaved().some(
+      x => x.id === id
+    );
+  }
+
+  function toggleSave(p) {
+    const a = getSaved();
+
+    const existing = a.findIndex(
+      x => x.id === p.id
+    );
+
+    if (existing >= 0) {
+      a.splice(existing, 1);
+    } else {
+      a.unshift({
+        ...p,
+        savedAt: new Date().toISOString()
+      });
+    }
+
+    if (saveSaved(a)) {
+      renderWatch();
+      renderCards();
+    }
+  }
+
+  // ====================================
+  // SAFE SOURCE LINKS
+  // ====================================
+
+  function link(label, url) {
+    const a = text('a', label);
+    const href = safeURL(url);
+
+    if (!href) return null;
+
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+
+    return a;
+  }
+
+  // ====================================
+  // EXISTING PROJECT INTEL HANDOFF
+  // ====================================
+
+  function useInProjectIntel(p) {
+    const target = $('crimsonProjectIntel');
+
+    if (!target) {
+      status(
+        'Project Intel was not found. Install the Project Intel module first.',
+        true
+      );
+      return;
+    }
+
+    const fill = (id, value) => {
+      const node = $(id);
+
+      if (node && value) {
+        node.value = value;
+      }
+    };
+
+    fill('piName', p.name);
+    fill('piSite', p.website);
+    fill('piGithub', p.github);
+    fill('piX', p.x);
+
+    const cat = $('piCategory');
+
+    if (cat) {
+      cat.value = p.sector;
+    }
+
+    const chain = $('piChain');
+
+    if (chain && p.chains.length) {
+      const mapping = {
+        ethereum: 'ethereum',
+        solana: 'solana',
+        base: 'base',
+        bsc: 'bsc',
+        arbitrum: 'arbitrum',
+        polygon: 'polygon'
+      };
+
+      const found = p.chains
+        .map(x =>
+          mapping[String(x).toLowerCase()]
+        )
+        .find(Boolean);
+
+      if (found) {
+        chain.value = found;
+      }
+    }
+
+    target.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+
+    status(
+      'Filled Project Intel with ' +
+      p.name +
+      '. Review the inputs and press Analyze Project.'
+    );
+  }
+
+  // ====================================
+  // PROJECT RESULT CARDS
+  // ====================================
+
+  function makeCard(p) {
+    const card = text(
+      'article',
+      null,
+      'gs-card'
+    );
+
+    card.append(
+      text('h3', p.name)
+    );
+
+    const tags = text(
+      'div',
+      null,
+      'gs-tags'
+    );
+
+    tags.append(
+      text('span', p.sector, 'gs-tag')
+    );
+
+    tags.append(
+      text(
+        'span',
+        p.kind === 'github'
+          ? 'GitHub lead'
+          : 'DeFiLlama protocol',
+        'gs-tag'
+      )
+    );
+
+    tags.append(
+      text(
+        'span',
+        'Lead signal ' + p.score + '/100',
+        'gs-tag'
+      )
+    );
+
+    card.append(tags);
+
+    if (p.description) {
+      card.append(
+        text('p', p.description)
+      );
+    }
+
+    if (p.kind === 'github') {
+      card.append(
+        text(
+          'p',
+          'Repository age: ' +
+          (
+            p.age == null
+              ? 'unknown'
+              : p.age + ' days'
+          ) +
+          ' · Last code push: ' +
+          (
+            p.updated == null
+              ? 'unknown'
+              : p.updated + ' days ago'
+          ) +
+          ' · Stars: ' + p.stars
+        )
+      );
+    } else {
+      card.append(
+        text(
+          'p',
+          'Tracked TVL: ' +
+          dollars(p.tvl) +
+          ' · 7-day TVL change: ' +
+          signed(p.change7) +
+          (
+            p.age == null
+              ? ' · Listing date unknown'
+              : ' · Listed ' + p.age + ' days ago'
+          )
+        )
+      );
+    }
+
+    card.append(
+      text(
+        'p',
+        'Why surfaced: ' +
+        p.reasons.join('; ') +
+        '.'
+      )
+    );
+
+    // ====================================
+    // INDUSTRY-SPECIFIC PITCH HYPOTHESIS
+    // ====================================
+
+    let hypothesis = '';
+
+    if (p.sector === 'Wallet') {
+      hypothesis =
+        'Offer better onboarding, educational content, and user support.';
+    } else if (p.sector === 'RWA') {
+      hypothesis =
+        'Offer plain-language explainers, lead generation, and community education.';
+    } else if (p.sector === 'AI') {
+      hypothesis =
+        'Offer tutorials, product demos, and developer-community growth.';
+    } else if (p.sector === 'Infrastructure') {
+      hypothesis =
+        'Offer developer outreach, documentation, and technical community building.';
+    } else {
+      hypothesis =
+        'Offer user education, community engagement, and product onboarding.';
+    }
+
+    card.append(
+      text(
+        'p',
+        'Potential pitch hypothesis: ' +
+        hypothesis +
+        ' Verify an actual need before pitching.'
+      )
+    );
+
+    // ====================================
+    // EVIDENCE AND SOCIAL LINKS
+    // ====================================
+
+    const links = text(
+      'div',
+      null,
+      'gs-actions'
+    );
+
+    const xProjectSearch =
+      'https://x.com/search?q=' +
+      encodeURIComponent(
+        '"' +
+        p.name.replace(/["]/g, '').slice(0, 60) +
+        '" -is:retweet'
+      ) +
+      '&f=live';
+
+    const sourceLinks = [
+      ['Evidence ↗', p.evidence],
+      ['Website ↗', p.website],
+      ['X profile ↗', p.x],
+      ['Recent X mentions ↗', xProjectSearch],
+      ['GitHub ↗', p.github]
+    ];
+
+    for (const [name, uri] of sourceLinks) {
+      const a = link(name, uri);
+
+      if (a) {
+        links.append(a);
+      }
+    }
+
+    card.append(links);
+
+    // ====================================
+    // RESEARCH AND SAVE BUTTONS
+    // ====================================
+
+    const buttons = text(
+      'div',
+      null,
+      'gs-actions'
+    );
+
+    const research = text(
+      'button',
+      'Analyze in Project Intel'
+    );
+
+    research.type = 'button';
+
+    research.addEventListener(
+      'click',
+      () => useInProjectIntel(p)
+    );
+
+    const watch = text(
+      'button',
+      inWatchlist(p.id)
+        ? '★ Remove watch'
+        : '☆ Watch lead',
+      'gs-alt'
+    );
+
+    watch.type = 'button';
+
+    watch.addEventListener(
+      'click',
+      () => toggleSave(p)
+    );
+
+    buttons.append(
+      research,
+      watch
+    );
+
+    card.append(buttons);
+
+    return card;
+  }
+
+  // ====================================
+  // RENDER DISCOVERED PROJECTS
+  // ====================================
+
+  function renderCards() {
+    const root = $('gsCards');
+    root.replaceChildren();
+
+    if (!lastRun) return;
+
+    const matching = leads.filter(passes);
+    const list = matching.slice(0, 24);
+
+    if (!list.length) {
+      root.append(
+        text(
+          'p',
+          'No leads match these filters from the current sources. Try All sectors and Any stage.'
+        )
+      );
+    } else {
+      for (const p of list) {
+        root.append(makeCard(p));
+      }
+    }
+
+    status(
+      'Showing ' +
+      list.length +
+      ' of ' +
+      matching.length +
+      ' matching leads (' +
+      leads.length +
+      ' total candidates). Sources checked ' +
+      new Date(lastRun).toLocaleTimeString() +
+      '.' +
+      (
+        scanIssues.length
+          ? ' Some sources unavailable: ' +
+            scanIssues.join(' | ')
+          : ''
+      ),
+      scanIssues.length > 0 &&
+      !leads.length
+    );
+  }
+
+  // ====================================
+  // RENDER OUTREACH WATCHLIST
+  // ====================================
+
+  function renderWatch() {
+    const watch = getSaved();
+    const root = $('gsWatchRows');
+
+    root.replaceChildren();
+
+    $('gsCount').textContent =
+      '(' + watch.length + ')';
+
+    if (!watch.length) {
+      root.append(
+        text(
+          'p',
+          'No leads saved yet. Save projects from the results to build an outreach shortlist.'
+        )
+      );
+
+      return;
+    }
+
+    for (const p of watch.slice(0, 30)) {
+      const row = text(
+        'div',
+        null,
+        'gs-watch-row'
+      );
+
+      const left = text('div');
+
+      left.append(
+        text('strong', p.name)
+      );
+
+      left.append(
+        text(
+          'p',
+          p.sector +
+          ' · ' +
+          (
+            p.kind === 'github'
+              ? 'GitHub'
+              : 'DeFiLlama'
+          ) +
+          ' · ' +
+          (
+            p.savedAt
+              ? new Date(p.savedAt).toLocaleDateString()
+              : 'Saved'
+          )
+        )
+      );
+
+      const actions = text(
+        'div',
+        null,
+        'gs-actions'
+      );
+
+      const open = link(
+        'Source ↗',
+        p.evidence
+      );
+
+      if (open) {
+        actions.append(open);
+      }
+
+      const apply = text(
+        'button',
+        'Research',
+        'gs-alt'
+      );
+
+      apply.addEventListener(
+        'click',
+        () => useInProjectIntel(p)
+      );
+
+      const remove = text(
+        'button',
+        'Remove',
+        'gs-alt'
+      );
+
+      remove.addEventListener(
+        'click',
+        () => toggleSave(p)
+      );
+
+      actions.append(
+        apply,
+        remove
+      );
+
+      row.append(
+        left,
+        actions
+      );
+
+      root.append(row);
+    }
+  }
+
+  // ====================================
+  // MAIN DISCOVERY ENGINE
+  // ====================================
+
+  async function run() {
+    if (busy) return;
+
+    busy = true;
+
+    $('gsFind').disabled = true;
+
+    $('gsCards').replaceChildren();
+
+    status(
+      'Searching public project directories and recently created repositories…'
+    );
+
+    try {
+      const source = $('gsSource').value;
+      const requests = [];
+
+      if (
+        source === 'all' ||
+        source === 'defillama'
+      ) {
+        requests.push({
+          name: 'DeFiLlama',
+          p: fromDefiLlama()
+        });
+      }
+
+      if (
+        source === 'all' ||
+        source === 'github'
+      ) {
+        requests.push({
+          name: 'GitHub',
+          p: fromGitHub(
+            Number($('gsDays').value)
+          )
+        });
+      }
+
+      const settled = await Promise.allSettled(
+        requests.map(x => x.p)
+      );
+
+      scanIssues = [];
+
+      const merged = [];
+
+      settled.forEach((s, i) => {
+        if (s.status === 'rejected') {
+          scanIssues.push(
+            requests[i].name +
+            ': ' +
+            (
+              s.reason?.message ||
+              'request failed'
+            )
+          );
+        } else if (
+          requests[i].name === 'GitHub'
+        ) {
+          merged.push(
+            ...s.value.found
+          );
+
+          scanIssues.push(
+            ...s.value.failures
+          );
+        } else {
+          merged.push(
+            ...s.value
+          );
+        }
+      });
+
+      const unique = new Map();
+
+      for (const l of merged) {
+        if (!unique.has(l.id)) {
+          unique.set(l.id, l);
+        }
+      }
+
+      leads = [...unique.values()].sort(
+        (a, b) =>
+          b.score - a.score ||
+          (
+            (a.age ?? 9999) -
+            (b.age ?? 9999)
+          )
+      );
+
+      lastRun = now();
+
+      if (!leads.length) {
+        status(
+          'No leads returned. ' +
+          (
+            scanIssues.length
+              ? scanIssues.join(' | ')
+              : 'Try adjusting filters.'
+          ),
+          true
+        );
+      } else {
+        renderCards();
+      }
+
+    } finally {
+      busy = false;
+      $('gsFind').disabled = false;
+    }
+  }
+
+  // ====================================
+  // X / TWITTER PROJECT DISCOVERY
+  // ====================================
+
+  function xQuery(jobsOnly) {
+    const sector = $('gsSector').value;
+
+    const keywords = {
+      all:
+        '(DeFi OR web3 OR "crypto wallet" OR RWA OR "onchain AI")',
+
+      DeFi:
+        '(DeFi OR "onchain finance")',
+
+      Wallet:
+        '("crypto wallet" OR "web3 wallet")',
+
+      AI:
+        '("onchain AI" OR "crypto AI" OR "AI agent")',
+
+      RWA:
+        '(RWA OR "tokenization" OR "real world assets")',
+
+      Infrastructure:
+        '("web3 infrastructure" OR "blockchain tooling")'
+    };
+
+    if (jobsOnly) {
+      return (
+        '(("ambassador program" OR "community manager" ' +
+        'OR "growth partner" OR "looking for marketers") ' +
+        keywords[sector] +
+        ') -is:retweet'
+      );
+    }
+
+    return (
+      '(("just launched" OR "building in public" ' +
+      'OR "early access" OR "launching soon") ' +
+      keywords[sector] +
+      ') -is:retweet'
+    );
+  }
+
+  function openX(jobsOnly) {
+    const u =
+      'https://x.com/search?q=' +
+      encodeURIComponent(
+        xQuery(jobsOnly)
+      ) +
+      '&f=live';
+
+    // Opens X search without reading or storing posts.
+    window.open(
+      u,
+      '_blank',
+      'noopener,noreferrer'
+    );
+
+    status(
+      'Opened an X Latest search. X results are not automatically ingested; verify the accounts before using them as leads.'
+    );
+  }
+
+  // ====================================
+  // EXPORT WATCHLIST TO CSV
+  // ====================================
+
+  function exportCSV() {
+    const rows = getSaved();
+
+    if (!rows.length) {
+      status(
+        'Save at least one lead before exporting.',
+        true
+      );
+
+      return;
+    }
+
+    const col = [
+      'Name',
+      'Sector',
+      'Source',
+      'Lead signal score',
+      'Website',
+      'Evidence',
+      'X',
+      'GitHub',
+      'TVL USD',
+      '7d TVL change %',
+      'Saved'
+    ];
+
+    const cell = x =>
+      '"' +
+      String(x ?? '')
+        .replace(/^[=+@\-]/, "'$&")
+        .replace(/"/g, '""') +
+      '"';
+
+    const data = [
+      col,
+      ...rows.map(p => [
+        p.name,
+        p.sector,
+        p.kind,
+        p.score,
+        p.website,
+        p.evidence,
+        p.x,
+        p.github,
+        p.tvl,
+        p.change7,
+        p.savedAt
+      ])
+    ];
+
+    const blob = new Blob(
+      [
+        data.map(
+          r => r.map(cell).join(',')
+        ).join('\r\n')
+      ],
+      {
+        type: 'text/csv;charset=utf-8'
+      }
+    );
+
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+
+    a.href = url;
+    a.download =
+      'crimson-growth-scout-watchlist.csv';
+
+    a.click();
+
+    setTimeout(
+      () => URL.revokeObjectURL(url),
+      1500
+    );
+  }
+
+  // ====================================
+  // BUTTON EVENTS
+  // ====================================
+
+  $('gsFind').addEventListener(
+    'click',
+    () => run().catch(
+      e => status(
+        'Discovery failed: ' + e.message,
+        true
+      )
+    )
+  );
+
+  [
+    'gsSector',
+    'gsStage',
+    'gsSearch'
+  ].forEach(id => {
+    $(id).addEventListener(
+      id === 'gsSearch'
+        ? 'input'
+        : 'change',
+      renderCards
+    );
+  });
+
+  $('gsXLatest').addEventListener(
+    'click',
+    () => openX(false)
+  );
+
+  $('gsXJobs').addEventListener(
+    'click',
+    () => openX(true)
+  );
+
+  $('gsExport').addEventListener(
+    'click',
+    exportCSV
+  );
+
+  // Initial saved watchlist display.
+  renderWatch();
+
+})();
+
+</script>
+
 </body>
 </html>
