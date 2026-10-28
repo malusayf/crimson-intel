@@ -1611,5 +1611,1317 @@ a {
 
 <script src="./crimson-radar.js" defer></script>
 
+<!-- CRIMSON PROJECT INTEL - PASTE BEFORE </body> -->
+<script>
+(() => {
+  'use strict';
+
+  if (document.getElementById('crimsonProjectIntel')) return;
+
+  const $ = id => document.getElementById(id);
+  const KEY = 'crimson-project-intel-reports-v1';
+
+  const CHAINS = {
+    solana: 'Solana',
+    ethereum: 'Ethereum',
+    base: 'Base',
+    bsc: 'BNB Chain',
+    arbitrum: 'Arbitrum',
+    polygon: 'Polygon'
+  };
+
+  // OPTIONAL: Your private AI backend URL.
+  // Leave unconfigured for the free public-data version.
+  const API = typeof window.CRIMSON_PROJECT_INTEL_API === 'string'
+    ? window.CRIMSON_PROJECT_INTEL_API
+    : '';
+
+  // ============================
+  // CRIMSON PROJECT INTEL STYLES
+  // ============================
+
+  const style = document.createElement('style');
+
+  style.textContent = `
+    #crimsonProjectIntel {
+      background: #131a2ee8;
+      border: 1px solid #303955;
+      border-radius: 17px;
+      padding: 20px;
+      color: #f2f3ff;
+      margin: 18px 0;
+    }
+
+    #crimsonProjectIntel * {
+      box-sizing: border-box;
+    }
+
+    #crimsonProjectIntel [hidden] {
+      display: none !important;
+    }
+
+    #crimsonProjectIntel h2 {
+      font-size: 21px;
+      margin: 0 0 5px;
+    }
+
+    #crimsonProjectIntel h3 {
+      font-size: 16px;
+      margin: 0 0 10px;
+    }
+
+    #crimsonProjectIntel p,
+    #crimsonProjectIntel small {
+      color: #a5aecb;
+      line-height: 1.55;
+    }
+
+    #crimsonProjectIntel label {
+      display: block;
+      color: #dce2fa;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    #crimsonProjectIntel input,
+    #crimsonProjectIntel select,
+    #crimsonProjectIntel textarea {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      border-radius: 9px;
+      background: #090e20;
+      border: 1px solid #465071;
+      color: #fff;
+      padding: 11px;
+      margin-top: 6px;
+      font: inherit;
+    }
+
+    #crimsonProjectIntel textarea {
+      min-height: 70px;
+      resize: vertical;
+    }
+
+    #crimsonProjectIntel button {
+      background: linear-gradient(115deg, #f64b82, #8657ef);
+      border: 0;
+      color: white;
+      padding: 11px 14px;
+      border-radius: 9px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    #crimsonProjectIntel button.alt {
+      background: #293450;
+    }
+
+    #crimsonProjectIntel button:disabled {
+      opacity: .5;
+      cursor: wait;
+    }
+
+    #crimsonProjectIntel .pi-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 13px;
+      margin: 15px 0;
+    }
+
+    #crimsonProjectIntel .pi-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin: 14px 0;
+    }
+
+    #crimsonProjectIntel .pi-card {
+      background: #0a1124;
+      border: 1px solid #293450;
+      border-radius: 12px;
+      padding: 14px;
+      margin: 12px 0;
+      overflow-wrap: anywhere;
+    }
+
+    #crimsonProjectIntel .pi-card ul {
+      padding-left: 22px;
+      margin: 8px 0;
+    }
+
+    #crimsonProjectIntel .pi-card li {
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
+    #crimsonProjectIntel .pi-report {
+      border-top: 1px solid #303955;
+      margin-top: 14px;
+      padding-top: 12px;
+    }
+
+    #crimsonProjectIntel .pi-ai {
+      white-space: pre-wrap;
+      color: #eaf0ff;
+      line-height: 1.65;
+    }
+
+    #crimsonProjectIntel a {
+      color: #a9b8ff;
+    }
+
+    #crimsonProjectIntel .pi-status {
+      color: #a5aecb;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 600px) {
+      #crimsonProjectIntel {
+        padding: 14px;
+      }
+
+      #crimsonProjectIntel .pi-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;
+
+  document.head.append(style);
+
+  // ============================
+  // PROJECT INTEL INTERFACE
+  // ============================
+
+  const box = document.createElement('section');
+  box.id = 'crimsonProjectIntel';
+
+  box.innerHTML = `
+    <h2>🧠 Crimson Project Intel <small>· BETA</small></h2>
+
+    <p>
+      Research crypto projects, inspect available public data,
+      identify questions and draft ambassador or service pitches.
+      Public data mode does not read website pages or X posts.
+    </p>
+
+    <form id="piForm">
+      <div class="pi-grid">
+
+        <label>
+          Project name *
+          <input
+            id="piName"
+            required
+            maxlength="110"
+            placeholder="Example Protocol"
+          >
+        </label>
+
+        <label>
+          Website URL
+          <input
+            id="piSite"
+            placeholder="https://example.org"
+            maxlength="260"
+          >
+        </label>
+
+        <label>
+          Category
+          <select id="piCategory">
+            <option>DeFi</option>
+            <option>Wallet</option>
+            <option>AI</option>
+            <option>RWA</option>
+            <option>Infrastructure</option>
+            <option>Other</option>
+          </select>
+        </label>
+
+        <label>
+          Blockchain
+          <select id="piChain">
+            <option value="solana">Solana</option>
+            <option value="ethereum">Ethereum</option>
+            <option value="base">Base</option>
+            <option value="bsc">BNB Chain</option>
+            <option value="arbitrum">Arbitrum</option>
+            <option value="polygon">Polygon</option>
+          </select>
+        </label>
+
+        <label>
+          Token address (optional)
+          <input
+            id="piToken"
+            placeholder="Token contract / Solana mint"
+            maxlength="60"
+          >
+        </label>
+
+        <label>
+          GitHub repository (optional)
+          <input
+            id="piGithub"
+            placeholder="https://github.com/owner/repo"
+            maxlength="250"
+          >
+        </label>
+
+        <label>
+          X profile (optional)
+          <input
+            id="piX"
+            placeholder="https://x.com/project"
+            maxlength="250"
+          >
+        </label>
+
+        <label>
+          Pitch objective
+          <select id="piGoal">
+            <option value="both">Ambassador + Services</option>
+            <option value="ambassador">Ambassador / Promotion</option>
+            <option value="services">Sell Services</option>
+          </select>
+        </label>
+
+      </div>
+
+      <label>
+        Your skills / what you can offer
+        <textarea
+          id="piOffer"
+          maxlength="350"
+          placeholder="Community building, content, growth, onboarding, etc."
+        ></textarea>
+      </label>
+
+      <label id="piSecretLabel" hidden>
+        Private AI access code (never saved)
+        <input
+          id="piSecret"
+          type="password"
+          autocomplete="off"
+          placeholder="Only if you configured an AI backend"
+        >
+      </label>
+
+      <div class="pi-actions">
+        <button type="submit" id="piAnalyze">
+          ⚡ Analyze Project
+        </button>
+
+        <button class="alt" id="piReset" type="button">
+          Clear form
+        </button>
+      </div>
+
+    </form>
+
+    <p class="pi-status" id="piStatus" role="status">
+      Enter a project to begin.
+    </p>
+
+    <div id="piResults" hidden></div>
+
+    <div class="pi-card">
+      <label>
+        Saved research on this browser
+        <select id="piHistory">
+          <option value="">Choose a report</option>
+        </select>
+      </label>
+
+      <div class="pi-actions">
+        <button type="button" id="piOpen" class="alt">
+          Open saved
+        </button>
+
+        <button type="button" id="piDelete" class="alt">
+          Delete saved
+        </button>
+      </div>
+    </div>
+
+    <small>
+      Public data may be incomplete or stale.
+      Pitches are drafts, not evidence of hiring.
+      No contract security audit or investment
+      recommendation is performed.
+    </small>
+  `;
+
+  const main = document.querySelector('main');
+
+  if (!main) return;
+
+  // Keep the existing market dashboard and radar intact.
+  const radar = document.getElementById('crimsonMarketRadar');
+  const tracker = $('mint')?.closest('section');
+
+  if (radar?.parentNode) {
+    radar.insertAdjacentElement('afterend', box);
+  } else if (tracker?.parentNode) {
+    tracker.insertAdjacentElement('afterend', box);
+  } else {
+    main.prepend(box);
+  }
+
+  if (API) {
+    $('piSecretLabel').hidden = false;
+  }
+
+  // ============================
+  // HELPERS
+  // ============================
+
+  const message = (s, err = false) => {
+    $('piStatus').textContent = s;
+    $('piStatus').style.color = err ? '#ff9baa' : '#a5aecb';
+  };
+
+  const el = (tag, value, cls) => {
+    const e = document.createElement(tag);
+
+    if (value !== undefined) {
+      e.textContent = String(value);
+    }
+
+    if (cls) {
+      e.className = cls;
+    }
+
+    return e;
+  };
+
+  function https(raw) {
+    try {
+      const u = new URL(
+        /^https?:\/\//i.test(raw)
+          ? raw
+          : 'https://' + raw
+      );
+
+      return u.protocol === 'https:' ? u.href : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function github(raw) {
+    if (!raw) return null;
+
+    try {
+      const u = new URL(https(raw));
+      const p = u.pathname.split('/').filter(Boolean);
+
+      if (
+        !['github.com', 'www.github.com'].includes(u.hostname) ||
+        p.length < 2 ||
+        !/^[\w.-]{1,100}$/.test(p[0]) ||
+        !/^[\w.-]{1,100}$/.test(p[1])
+      ) {
+        return null;
+      }
+
+      return {
+        owner: p[0],
+        repo: p[1].replace(/\.git$/i, '')
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  const isAddress = (addr, chain) =>
+    !addr ||
+    (
+      chain === 'solana'
+        ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr)
+        : /^0x[0-9a-fA-F]{40}$/.test(addr)
+    );
+
+  const money = n =>
+    n == null || !Number.isFinite(+n)
+      ? 'Unavailable'
+      : '$' + (+n).toLocaleString('en-US', {
+          maximumFractionDigits: 2,
+          notation: Math.abs(+n) > 1e6
+            ? 'compact'
+            : 'standard'
+        });
+
+  // Fetch public JSON with a 15-second timeout.
+  async function json(url) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        throw Error('HTTP ' + response.status);
+      }
+
+      return await response.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  function values() {
+    return {
+      name: $('piName').value.trim(),
+      site: $('piSite').value.trim(),
+      category: $('piCategory').value,
+      chain: $('piChain').value,
+      token: $('piToken').value.trim(),
+      github: $('piGithub').value.trim(),
+      x: $('piX').value.trim(),
+      goal: $('piGoal').value,
+      offer: $('piOffer').value.trim()
+    };
+  }
+
+  // ============================
+  // PITCH GENERATOR
+  // ============================
+
+  function pitch(r, kind) {
+    const skill = r.offer || (
+      kind === 'ambassador'
+        ? 'educational content and community engagement'
+        : 'onboarding content and community support'
+    );
+
+    if (kind === 'ambassador') {
+      return `Hi ${r.name} team, I have been researching your project and would like to contribute ${skill}. Are you accepting ambassadors or community contributors? I can share relevant work and propose a measurable trial.`;
+    }
+
+    return `Hi ${r.name} team, I offer ${skill}. If your team needs help in this area, I would love to discuss a focused project with clear deliverables. Who handles collaborations?`;
+  }
+
+  // ============================
+  // PROJECT RESEARCH ENGINE
+  // ============================
+
+  async function research(r) {
+    const facts = [];
+    const risks = [];
+    const questions = [];
+    const sources = [];
+    const errors = [];
+
+    function add(label, url) {
+      const u = https(url || '');
+
+      if (
+        u &&
+        !sources.some(s => s.url === u)
+      ) {
+        sources.push({ label, url: u });
+      }
+    }
+
+    if (r.site) {
+      add(
+        'Project site (submitted, not independently checked)',
+        r.site
+      );
+    }
+
+    if (r.x) {
+      add(
+        'X profile (submitted, not independently checked)',
+        r.x
+      );
+    }
+
+    const jobs = [];
+    const gh = github(r.github);
+
+    if (r.github && !gh) {
+      errors.push(
+        'GitHub URL is not a valid public repository URL.'
+      );
+    }
+
+    // GITHUB ANALYSIS
+    if (gh) {
+      jobs.push((async () => {
+        try {
+          const url =
+            `https://api.github.com/repos/` +
+            `${encodeURIComponent(gh.owner)}/` +
+            `${encodeURIComponent(gh.repo)}`;
+
+          const d = await json(url);
+
+          if (!d.full_name || d.private) {
+            throw Error('No public repository');
+          }
+
+          facts.push(
+            `GitHub: ${d.full_name} · ` +
+            `${d.stargazers_count || 0} stars · ` +
+            `${d.forks_count || 0} forks · ` +
+            `last push ${d.pushed_at
+              ? new Date(d.pushed_at).toLocaleDateString()
+              : 'unknown'}.`
+          );
+
+          if (d.description) {
+            facts.push(
+              'GitHub description (maintainer-written): ' +
+              d.description.slice(0, 240)
+            );
+          }
+
+          if (d.archived) {
+            risks.push(
+              'This GitHub repository is archived.'
+            );
+          }
+
+          if (
+            d.pushed_at &&
+            Date.now() - Date.parse(d.pushed_at) >
+              180 * 86400000
+          ) {
+            risks.push(
+              'No public push to this repository in over ' +
+              '180 days; this does not prove the project is inactive.'
+            );
+          }
+
+          add(
+            'GitHub repository',
+            d.html_url ||
+              `https://github.com/${gh.owner}/${gh.repo}`
+          );
+
+        } catch (e) {
+          errors.push(
+            'GitHub check unavailable: ' + e.message
+          );
+        }
+      })());
+    }
+
+    // DEX SCREENER ANALYSIS
+    if (r.token) {
+      jobs.push((async () => {
+        try {
+          const url =
+            `https://api.dexscreener.com/token-pairs/v1/` +
+            `${encodeURIComponent(r.chain)}/` +
+            `${encodeURIComponent(r.token)}`;
+
+          const all = await json(url);
+
+          if (!Array.isArray(all)) {
+            throw Error('Invalid market feed');
+          }
+
+          const pools = all.filter(p =>
+            p?.chainId === r.chain &&
+            (
+              p?.baseToken?.address?.toLowerCase() ===
+                r.token.toLowerCase() ||
+              p?.quoteToken?.address?.toLowerCase() ===
+                r.token.toLowerCase()
+            )
+          );
+
+          const p = pools.sort(
+            (a, b) =>
+              (Number(b.liquidity?.usd) || 0) -
+              (Number(a.liquidity?.usd) || 0)
+          )[0];
+
+          if (!p) {
+            throw Error('No indexed token pool');
+          }
+
+          facts.push(
+            `DEX Screener: ` +
+            `${money(p.liquidity?.usd)} selected-pool liquidity · ` +
+            `${money(p.volume?.h24)} volume (24h) · ` +
+            `${p.priceChange?.h24 ?? 'unavailable'}% ` +
+            `price change (24h).`
+          );
+
+          facts.push(
+            'Exchange: ' +
+            (p.dexId || 'unknown') +
+            ' · pool: ' +
+            (p.pairAddress || 'unknown')
+          );
+
+          const l = Number(p.liquidity?.usd);
+
+          if (Number.isFinite(l) && l < 10000) {
+            risks.push(
+              'Selected pool has under $10,000 liquidity: ' +
+              'very high slippage risk.'
+            );
+          } else if (
+            Number.isFinite(l) &&
+            l < 25000
+          ) {
+            risks.push(
+              'Selected pool has under $25,000 liquidity: ' +
+              'elevated execution risk.'
+            );
+          }
+
+          add(
+            'DEX Screener market data',
+            p.url ||
+              `https://dexscreener.com/${r.chain}/${p.pairAddress}`
+          );
+
+        } catch (e) {
+          errors.push(
+            'Token market check unavailable: ' + e.message
+          );
+        }
+      })());
+    }
+
+    await Promise.all(jobs);
+
+    // RESEARCH QUESTIONS
+    questions.push(
+      'Is the project hiring ambassadors or accepting ' +
+      'third-party service providers?'
+    );
+
+    questions.push(
+      'What specific business problem needs solving, ' +
+      'and who can approve a collaboration?'
+    );
+
+    questions.push(
+      'Are the team, token ownership, audit claims ' +
+      'and documentation independently verifiable?'
+    );
+
+    if (!r.github) {
+      questions.push(
+        'Is there an official public code repository?'
+      );
+    }
+
+    if (!r.token) {
+      questions.push(
+        'Is there a token contract to analyze separately?'
+      );
+    }
+
+    return {
+      facts,
+      risks,
+      questions,
+      sources,
+      errors
+    };
+  }
+
+  // ============================
+  // OPTIONAL AI DEEP RESEARCH
+  // ============================
+
+  async function deepAI(r) {
+    if (!API) return null;
+
+    if (
+      !/^https:\/\//i.test(API) &&
+      !/^\/api\//.test(API)
+    ) {
+      throw Error(
+        'AI URL must be HTTPS or a same-origin /api/ endpoint'
+      );
+    }
+
+    const secret = $('piSecret').value;
+
+    if (!secret) {
+      throw Error('Private AI access code not provided');
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(),
+      90000
+    );
+
+    try {
+      const response = await fetch(API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + secret
+        },
+        body: JSON.stringify(r),
+        signal: controller.signal
+      });
+
+      const body = await response.json().catch(
+        () => ({})
+      );
+
+      if (!response.ok) {
+        throw Error(
+          body.error || 'HTTP ' + response.status
+        );
+      }
+
+      if (typeof body.report !== 'string') {
+        throw Error(
+          'AI backend did not return a report'
+        );
+      }
+
+      return {
+        report: body.report.slice(0, 20000),
+        sources: Array.isArray(body.sources)
+          ? body.sources
+          : []
+      };
+
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // ============================
+  // REPORT DISPLAY
+  // ============================
+
+  function addCard(root, title, items, empty) {
+    const card = el('div', undefined, 'pi-card');
+
+    card.append(el('h3', title));
+
+    if (items?.length) {
+      const ul = el('ul');
+
+      for (const item of items) {
+        ul.append(el('li', item));
+      }
+
+      card.append(ul);
+    } else {
+      card.append(
+        el(
+          'p',
+          empty || 'No verified observations from available data.'
+        )
+      );
+    }
+
+    root.append(card);
+
+    return card;
+  }
+
+  // ============================
+  // LOCAL REPORT HISTORY
+  // ============================
+
+  function readSaved() {
+    try {
+      const data = JSON.parse(
+        localStorage.getItem(KEY) || '[]'
+      );
+
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function history() {
+    const select = $('piHistory');
+
+    select.replaceChildren(
+      el('option', 'Choose a report')
+    );
+
+    select.firstChild.value = '';
+
+    for (const r of readSaved()) {
+      const item = el(
+        'option',
+        r.name + ' · ' +
+        new Date(r.created).toLocaleDateString()
+      );
+
+      item.value = r.id;
+      select.append(item);
+    }
+  }
+
+  function save(r) {
+    try {
+      const arr = readSaved().filter(
+        x => x.id !== r.id
+      );
+
+      arr.unshift(r);
+
+      localStorage.setItem(
+        KEY,
+        JSON.stringify(arr.slice(0, 20))
+      );
+
+      history();
+      message('Report saved in this browser.');
+
+    } catch {
+      message(
+        'Could not save report in browser storage.',
+        true
+      );
+    }
+  }
+
+  async function copy(s) {
+    try {
+      await navigator.clipboard.writeText(s);
+
+      message('Pitch copied to clipboard.');
+    } catch {
+      message(
+        'Clipboard unavailable. Select and copy the pitch manually.',
+        true
+      );
+    }
+  }
+
+  // ============================
+  // BUILD INTELLIGENCE REPORT
+  // ============================
+
+  function report(r) {
+    const root = $('piResults');
+
+    root.replaceChildren();
+    root.hidden = false;
+
+    root.append(
+      el('h2', r.name + ' — Project Intelligence')
+    );
+
+    root.append(
+      el(
+        'p',
+        new Date(r.created).toLocaleString() +
+        ' · ' + r.category +
+        ' · ' + CHAINS[r.chain] +
+        ' · ' + (
+          r.ai
+            ? 'AI-assisted + public APIs'
+            : 'Public API mode'
+        )
+      )
+    );
+
+    addCard(
+      root,
+      'Verified API observations',
+      r.facts,
+      'No verified token or GitHub data. Add a valid token address or GitHub repository to check.'
+    );
+
+    addCard(
+      root,
+      'Risk flags',
+      r.risks,
+      'No risk flags were established with the available checks. That does not mean the project is safe.'
+    );
+
+    addCard(
+      root,
+      'Open research questions',
+      r.questions
+    );
+
+    // AI RESULTS
+    if (r.ai) {
+      const c = el('div', undefined, 'pi-card');
+
+      c.append(
+        el('h3', 'AI deep research'),
+        el('div', r.ai.report, 'pi-ai')
+      );
+
+      root.append(c);
+    }
+
+    // BUSINESS OPPORTUNITIES
+    const p = el('div', undefined, 'pi-card');
+
+    p.append(
+      el('h3', 'Business opportunities — draft outreach')
+    );
+
+    for (const mode of ['ambassador', 'services']) {
+      if (
+        r.goal !== mode &&
+        r.goal !== 'both'
+      ) {
+        continue;
+      }
+
+      const t = pitch(r, mode);
+
+      p.append(
+        el(
+          'h3',
+          mode === 'ambassador'
+            ? 'Ambassador pitch'
+            : 'Services pitch'
+        )
+      );
+
+      p.append(el('p', t));
+
+      const b = el(
+        'button',
+        'Copy pitch',
+        'alt'
+      );
+
+      b.type = 'button';
+      b.onclick = () => copy(t);
+
+      p.append(b);
+    }
+
+    root.append(p);
+
+    // SOURCE LINKS
+    const src = addCard(root, 'Sources', [], '');
+    src.lastChild.remove();
+
+    if (r.sources.length) {
+      const ul = el('ul');
+
+      for (const s of r.sources) {
+        const li = el('li');
+        const link = el(
+          'a',
+          s.label || s.url
+        );
+
+        const u = https(s.url);
+
+        if (!u) continue;
+
+        link.href = u;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+
+        li.append(link);
+        ul.append(li);
+      }
+
+      src.append(ul);
+    } else {
+      src.append(
+        el('p', 'No accessible source links.')
+      );
+    }
+
+    if (r.errors.length) {
+      addCard(
+        root,
+        'Incomplete checks',
+        r.errors
+      );
+    }
+
+    // REPORT ACTIONS
+    const buttons = el(
+      'div',
+      undefined,
+      'pi-actions'
+    );
+
+    const saveBtn = el(
+      'button',
+      'Save report',
+      'alt'
+    );
+
+    saveBtn.onclick = () => save(r);
+
+    const dl = el(
+      'button',
+      'Export report (.txt)',
+      'alt'
+    );
+
+    dl.onclick = () => {
+      const lines = [
+        r.name,
+        'Created: ' + r.created,
+        '',
+        'API FINDINGS',
+        ...r.facts,
+        '',
+        'RISKS',
+        ...r.risks,
+        '',
+        'QUESTIONS',
+        ...r.questions,
+        '',
+        'AMBASSADOR PITCH',
+        pitch(r, 'ambassador'),
+        '',
+        'SERVICES PITCH',
+        pitch(r, 'services'),
+        '',
+        'AI ANALYSIS',
+        r.ai?.report || 'Not configured',
+        '',
+        'SOURCES',
+        ...r.sources.map(
+          s => s.label + ': ' + s.url
+        ),
+        '',
+        'INCOMPLETE CHECKS',
+        ...r.errors
+      ];
+
+      const url = URL.createObjectURL(
+        new Blob(
+          [lines.join('\n')],
+          { type: 'text/plain;charset=utf-8' }
+        )
+      );
+
+      const a = el('a');
+
+      a.href = url;
+      a.download =
+        'crimson-project-' +
+        r.name.replace(/[^a-z0-9-]/gi, '-').slice(0, 40) +
+        '.txt';
+
+      a.click();
+
+      setTimeout(
+        () => URL.revokeObjectURL(url),
+        1000
+      );
+    };
+
+    buttons.append(saveBtn, dl);
+    root.append(buttons);
+  }
+
+  // ============================
+  // ANALYZE BUTTON
+  // ============================
+
+  $('piForm').addEventListener('submit', async e => {
+    e.preventDefault();
+
+    const r = values();
+
+    if (!r.name) {
+      return message(
+        'Enter the project name.',
+        true
+      );
+    }
+
+    if (r.site && !https(r.site)) {
+      return message(
+        'Website must be HTTPS.',
+        true
+      );
+    }
+
+    if (r.x) {
+      try {
+        const u = new URL(https(r.x));
+
+        if (
+          ![
+            'x.com',
+            'www.x.com',
+            'twitter.com',
+            'www.twitter.com'
+          ].includes(u.hostname)
+        ) {
+          throw Error();
+        }
+      } catch {
+        return message(
+          'X profile must be on x.com or twitter.com.',
+          true
+        );
+      }
+    }
+
+    if (
+      r.token &&
+      !isAddress(r.token, r.chain)
+    ) {
+      return message(
+        'Token format does not match the selected chain.',
+        true
+      );
+    }
+
+    $('piAnalyze').disabled = true;
+
+    message(
+      'Checking public GitHub and DEX data…'
+    );
+
+    try {
+      const data = await research(r);
+      let ai = null;
+
+      if (API) {
+        message(
+          'Public checks complete; requesting private AI research…'
+        );
+
+        try {
+          ai = await deepAI(r);
+        } catch (err) {
+          data.errors.push(
+            'AI research unavailable: ' + err.message
+          );
+        }
+      }
+
+      if (ai) {
+        for (const s of ai.sources || []) {
+          const url = https(s?.url || '');
+
+          if (
+            url &&
+            !data.sources.some(x => x.url === url)
+          ) {
+            data.sources.push({
+              url,
+              label: String(
+                s?.title || url
+              ).slice(0, 130)
+            });
+          }
+        }
+      }
+
+      const out = {
+        ...r,
+        ...data,
+        ai,
+        id:
+          Date.now().toString(36) +
+          Math.random().toString(36).slice(2, 6),
+        created: new Date().toISOString()
+      };
+
+      report(out);
+
+      message(
+        ai
+          ? 'AI and public research completed. Verify claims against sources.'
+          : 'Public research completed. Deep AI research requires the separate secure backend.'
+      );
+
+      $('piResults').scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'start'
+      });
+
+    } catch (err) {
+      message(
+        'Analysis could not finish: ' + err.message,
+        true
+      );
+    } finally {
+      $('piAnalyze').disabled = false;
+    }
+  });
+
+  // ============================
+  // OTHER BUTTONS
+  // ============================
+
+  $('piReset').onclick = () => {
+    $('piForm').reset();
+    message(
+      'Ready. Enter a project to begin.'
+    );
+  };
+
+  $('piOpen').onclick = () => {
+    const r = readSaved().find(
+      x => x.id === $('piHistory').value
+    );
+
+    if (!r) {
+      return message(
+        'Choose a saved report.',
+        true
+      );
+    }
+
+    report(r);
+
+    message(
+      'Opened saved report. Information may be outdated.'
+    );
+  };
+
+  $('piDelete').onclick = () => {
+    const id = $('piHistory').value;
+
+    if (!id) {
+      return message(
+        'Choose a saved report to delete.',
+        true
+      );
+    }
+
+    try {
+      localStorage.setItem(
+        KEY,
+        JSON.stringify(
+          readSaved().filter(r => r.id !== id)
+        )
+      );
+
+      history();
+      message('Report deleted.');
+
+    } catch {
+      message(
+        'Could not delete saved report.',
+        true
+      );
+    }
+  };
+
+  history();
+
+})();
+</script>
+
 </body>
 </html>
