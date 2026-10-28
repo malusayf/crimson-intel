@@ -295,9 +295,11 @@ a {
   }
 }
 </style>
+<style id="ciAuthPrelock">body.ci-account-locked main{display:none!important}#ciAuthStartup{font:15px system-ui,Arial;padding:20px;text-align:center;color:#bac5e4}</style>
 </head>
 
-<body>
+<body class="ci-account-locked">
+<div id="ciAuthStartup">⚔ Loading Crimson Intel account access…</div>
 
 <header>
   <div class="tag">KNIGHTSHADE ANALYTICS</div>
@@ -2437,15 +2439,7 @@ a {
   // ============================
 
   function readSaved() {
-    try {
-      const data = JSON.parse(
-        localStorage.getItem(KEY) || '[]'
-      );
-
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
-    }
+    return window.CrimsonAccounts?.getReports() || [];
   }
 
   function history() {
@@ -2469,28 +2463,15 @@ a {
     }
   }
 
-  function save(r) {
+  async function save(r) {
     try {
-      const arr = readSaved().filter(
-        x => x.id !== r.id
-      );
-
+      if(!window.CrimsonAccounts?.isReady())throw Error('Sign in first');
+      const arr=readSaved().filter(x=>x.id!==r.id);
       arr.unshift(r);
-
-      localStorage.setItem(
-        KEY,
-        JSON.stringify(arr.slice(0, 20))
-      );
-
+      await window.CrimsonAccounts.saveReports(arr.slice(0,20));
       history();
-      message('Report saved in this browser.');
-
-    } catch {
-      message(
-        'Could not save report in browser storage.',
-        true
-      );
-    }
+      message('Report saved in your private account.');
+    } catch(e) { message('Could not save report: '+e.message,true); }
   }
 
   async function copy(s) {
@@ -2889,36 +2870,18 @@ a {
     );
   };
 
-  $('piDelete').onclick = () => {
-    const id = $('piHistory').value;
-
-    if (!id) {
-      return message(
-        'Choose a saved report to delete.',
-        true
-      );
-    }
-
+  $('piDelete').onclick = async () => {
+    const id=$('piHistory').value;
+    if(!id)return message('Choose a saved report to delete.',true);
     try {
-      localStorage.setItem(
-        KEY,
-        JSON.stringify(
-          readSaved().filter(r => r.id !== id)
-        )
-      );
-
-      history();
-      message('Report deleted.');
-
-    } catch {
-      message(
-        'Could not delete saved report.',
-        true
-      );
-    }
+      if(!window.CrimsonAccounts?.isReady())throw Error('Sign in first');
+      await window.CrimsonAccounts.saveReports(readSaved().filter(r=>r.id!==id));
+      history();message('Report deleted from your account.');
+    } catch(e){message('Could not delete report: '+e.message,true);}
   };
 
   history();
+  window.addEventListener('crimson:reports-changed',history);
 
 })();
 </script>
@@ -3871,34 +3834,15 @@ a {
   // ====================================
 
   function getSaved() {
-    try {
-      const a = JSON.parse(
-        localStorage.getItem(WATCH_KEY) || '[]'
-      );
-
-      return Array.isArray(a) ? a : [];
-    } catch {
-      return [];
-    }
+    return window.CrimsonAccounts?.getWatchlist() || [];
   }
 
-  function saveSaved(a) {
+  async function saveSaved(a) {
     try {
-      localStorage.setItem(
-        WATCH_KEY,
-        JSON.stringify(a.slice(0, 75))
-      );
-
+      if(!window.CrimsonAccounts?.isReady())throw Error('Sign in first');
+      await window.CrimsonAccounts.saveWatchlist(a.slice(0,75));
       return true;
-
-    } catch {
-      status(
-        'Local storage is blocked; watchlist cannot be saved.',
-        true
-      );
-
-      return false;
-    }
+    } catch(e){status('Cloud watchlist save failed: '+e.message,true);return false;}
   }
 
   function inWatchlist(id) {
@@ -3907,26 +3851,12 @@ a {
     );
   }
 
-  function toggleSave(p) {
-    const a = getSaved();
-
-    const existing = a.findIndex(
-      x => x.id === p.id
-    );
-
-    if (existing >= 0) {
-      a.splice(existing, 1);
-    } else {
-      a.unshift({
-        ...p,
-        savedAt: new Date().toISOString()
-      });
-    }
-
-    if (saveSaved(a)) {
-      renderWatch();
-      renderCards();
-    }
+  async function toggleSave(p) {
+    const a=getSaved();
+    const ix=a.findIndex(x=>x.id===p.id);
+    if(ix>=0)a.splice(ix,1);
+    else a.unshift({...p,savedAt:new Date().toISOString()});
+    if(await saveSaved(a)){renderWatch();renderCards();}
   }
 
   // ====================================
@@ -4687,10 +4617,15 @@ a {
 
   // Initial saved watchlist display.
   renderWatch();
+  window.addEventListener('crimson:watchlist-changed',()=>{renderWatch();renderCards();});
 
 })();
 
 </script>
 
+
+<!-- CRIMSON_ACCOUNTS_CLOUD_V1: cloud auth + private Firestore data -->
+<script>window.CRIMSON_FIREBASE_CONFIG={"apiKey":"AIzaSyD4IAps5_2cyk_Ky6Jo6n9dEiClNRbReQo","authDomain":"crimson-intel.firebaseapp.com","projectId":"crimson-intel","storageBucket":"crimson-intel.firebasestorage.app","messagingSenderId":"525281138819","appId":"1:525281138819:web:aff158060b0a7dfdfd63b6","measurementId":"G-340HMK7FVE"};</script>
+<script type="module" src="./crimson-accounts.js"></script>
 </body>
 </html>
