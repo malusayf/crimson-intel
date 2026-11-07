@@ -104,7 +104,7 @@
   // the main intelligence section; this is only the shared tracked summary.
   const riskAnchor=document.createElement("div");
   riskAnchor.id="crimsonTrackedRadar";
-  root.appendChild(riskAnchor);
+  $("cmOldFlow").insertAdjacentElement("afterend",riskAnchor);
 
   const DANGER=65, SAMPLE_LIMIT=30;
   const lastLiq=new Map(),security=new Map(), latestByMint=new Map();
