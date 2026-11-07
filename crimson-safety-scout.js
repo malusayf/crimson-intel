@@ -215,6 +215,13 @@ const mint=$("mint")?.value.trim()||"";if(!valid(mint)||tracking)return;
 tracking=true;$("csTrackedState").textContent="Checking RugCheck report…";
 try{
 const r=await securityFor(mint);
+// Send normalized RugCheck result to Unified Intelligence; market scores never
+// pretend token security can be inferred from DEX transaction counts.
+window.dispatchEvent(new CustomEvent("crimson:security-check", {
+  detail: { mint, report: r }
+}));
+// Avoid showing a stale report for a token the user has already replaced.
+if (($("mint")?.value.trim()||"") !== mint) return;
 $("csTrackedState").textContent=r.verified?(r.reject?"Caution: security findings or unverified LP lock status.":"No severe findings in available report; rugs still possible."):"UNVERIFIED — report unavailable.";
 const box=$("csTrackedReasons");box.replaceChildren();
 for(const x of r.notes)box.append(make("p",x));
