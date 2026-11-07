@@ -825,7 +825,10 @@ a {
       !valid ||
       liquidity <= 0 ||
       volume <= 0 ||
-      total < 10
+      total < 20 ||
+      Number(p.volume?.m5) < 200 ||
+      Number(p.volume?.h1) < 1000 ||
+      Number(p.txns?.h1?.buys) + Number(p.txns?.h1?.sells) < 50
     ) {
 
       $('entrySignal').textContent =
@@ -1428,6 +1431,14 @@ a {
       alerts();
       analyzeEntry(pair);
 
+      // Broadcast the SAME selected-pool snapshot to the unified market engine.
+      // No extra tracked-token polling; analytics must not independently choose
+      // a different pool from the chart and investment calculator.
+      window.CRIMSON_LATEST_MARKET = { mint, pair, updatedAt: Date.now() };
+      window.dispatchEvent(new CustomEvent('crimson:market-snapshot', {
+        detail: window.CRIMSON_LATEST_MARKET
+      }));
+
       status(
         'Updated ' +
         new Date().toLocaleTimeString() +
@@ -1469,6 +1480,9 @@ a {
     }
 
     mint = m;
+    window.dispatchEvent(new CustomEvent('crimson:tracked-change', {
+      detail: { mint: m }
+    }));
 
     upTriggered = false;
     downTriggered = false;
