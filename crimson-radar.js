@@ -203,6 +203,19 @@
       "Activity sample adequate for these thresholds · 5m / 1h. No trade-size weighting or wallet identity verification.":
       "DATA QUALITY: LOW · Do not infer directional strength from isolated small trades.";
     evidence($("cmEvidence"),a.reasons);
+    // Keep the preserved Money Flow card consistent with the engine's
+    // evidence thresholds. The original tracker has just updated its counts;
+    // override its directional label only when the sample is too thin.
+    const legacyScore=$("score"),legacySignal=$("signal");
+    if(legacyScore&&legacySignal){
+      legacyScore.textContent=a.enough?a.buyShare.toFixed(1)+"/100":"—";
+      legacySignal.textContent=!a.enough?"INSUFFICIENT DATA":
+        a.buyShare>=60?"BUY COUNT PRESSURE":
+        a.buyShare<=40?"SELL COUNT PRESSURE":"MIXED";
+      legacySignal.style.color=!a.enough?"#ffd166":a.buyShare>=60?"#4ee0a9":a.buyShare<=40?"#ff6977":"#ffd166";
+      if($("buybar"))$("buybar").style.width=a.enough?a.buyShare+"%":"0%";
+      if($("sellbar"))$("sellbar").style.width=a.enough?(100-a.buyShare)+"%":"0%";
+    }
     $("cmLiveStatus").textContent="Tracking "+(activePair.baseToken?.symbol||"SOL token")+" · "+new Date().toLocaleTimeString()+" · selected DEX pool";
     lastLiq.set(m,{liquidity:num(activePair?.liquidity?.usd),time:Date.now()});
   }
