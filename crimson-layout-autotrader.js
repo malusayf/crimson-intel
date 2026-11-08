@@ -62,6 +62,7 @@
       {id:"discover",tab:"🔎 Discover",title:"Find Coins",desc:"Automatic Solana discovery and screened Safety Scout candidates."},
       {id:"positions",tab:"🎯 Positions & Guardian",title:"Positions & Guardian",desc:"Investment calculator, TP1–TP3, stop-loss planning, locked positions, partial sales and security protection."},
       {id:"autotrader",tab:"🤖 AutoTrader",title:"Live AutoTrader & Verified Trade Journal",desc:"Owner-authenticated Phantom connection, live execution readiness, dedicated wallet funding and finalized buy/sell history."},
+      {id:"robinhood",tab:"🟢 Robinhood Chain",title:"Robinhood Chain Intel",desc:"Network 4663: read-only DEX pools, official stock tokens, issuer contract verification, market data and local watchlist."},
       {id:"portfolio",tab:"💼 Portfolio",title:"Portfolio & Performance",desc:"Multiple holdings, risk concentration, anomaly research and signal observations."},
       {id:"research",tab:"🧠 Research",title:"Project & Growth Research",desc:"Growth Scout, Project Intel and planned wallet intelligence."},
       {id:"alerts",tab:"🔔 Alerts",title:"Price Alerts",desc:"Your original price thresholds and browser notification controls."}
@@ -109,6 +110,7 @@
     move("positions",$("cgGuardian"));
     move("positions",trackedReport);
     move("autotrader",$("ciAutoTrader"));
+    move("robinhood",$("ciRobinhood"));
     move("portfolio",$("ccCommandCenter"));
     move("research",$("ciGrowthScout"));
     move("research",$("crimsonProjectIntel"));
