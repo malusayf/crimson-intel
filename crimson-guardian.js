@@ -198,6 +198,10 @@ if(sec?.verified&&sec.reject)messages.push("ON-CHAIN SECURITY FLAG: investigate 
 if(currentChain()==="robinhood"&&current?.pair?.priceType==="issuer-reference")
  messages.push("ISSUER REFERENCE ONLY: NO DEX EXECUTABLE SELL QUOTE OR POOL LIQUIDITY. U.S. OFFERING RESTRICTIONS.");
 if(current?.pair?.dataStale)messages.push("STALE MARKET DATA. Do not rely on spot alerts or risk scores as live.");
+if(currentChain()==="robinhood"&&current?.pair?.issuerStatus&&current.pair.issuerStatus!=="ASSET_STATUS_ACTIVE")
+ messages.push("ISSUER STOCK TOKEN IS NOT MARKED ACTIVE; trading eligibility cannot be inferred.");
+if(currentChain()==="robinhood"&&current?.pair?.pendingMultiplier)
+ messages.push("CORPORATE ACTION MULTIPLIER PENDING; recheck entry/exit levels before relying on an older plan.");
 if(currentChain()==="robinhood"&&current?.pair?.priceType==="dex-spot"&&!sec?.verified)
  messages.push("ROBINHOOD CONTRACT SECURITY NOT VERIFIED. Pool liquidity is not proof a token is safe.");
 if(lk&&finite(priceNow)&&priceNow<=lk.plan.sl)messages.push("PRICE AT/BELOW LOCKED SL. Exit may be impaired by slippage.");
