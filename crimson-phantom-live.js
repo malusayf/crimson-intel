@@ -49,7 +49,8 @@ box.innerHTML=[
 '<p class="cl-warn">Security: the owner public wallet must match the private server configuration. The service must verify a unique, expiring Phantom signature. “Start Live” becomes available only after the backend explicitly reports an installed and verified live executor and signer. All actual trades would occur server-side with hard spending limits and audit logs. The current repository does not include those live execution components.</p>'
 ].join("");
 parent.append(box);
-let provider=null,address="",token="",backend=null,base="",busy=false,sessionExpires=0;
+const OPERATOR_ORIGIN="https://crimson-operator-api-production.up.railway.app";
+let provider=null,address="",token="",backend=null,base=OPERATOR_ORIGIN,busy=false,sessionExpires=0;
 function truncate(x){return x?x.slice(0,6)+"…"+x.slice(-5):"—";}
 function status(message){$("clStatus").textContent=message;}
 function safeUrl(s){
@@ -171,5 +172,6 @@ $("clDisconnect").addEventListener("click",()=>{
  status("Owner session cleared. No bot wallet was connected or granted spending authority.");
  update();
 });
+$("clServerUrl").value=OPERATOR_ORIGIN;
 provider=findPhantom();update();
 })();
