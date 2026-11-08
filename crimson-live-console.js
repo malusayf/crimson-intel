@@ -41,7 +41,7 @@ node.innerHTML=[
 '<div class="lv-top"><div><h2>⚔ Crimson AutoTrader · LIVE ONLY</h2>',
 '<p class="lv-sub">One owner · Phantom funding source · dedicated execution wallet · finalized on-chain transaction journal</p></div>',
 '<span class="lv-badge" id="lvMode">LIVE DISABLED</span></div>',
-'<div class="lv-warning">Crimson is not currently buying or selling real tokens. Your Phantom connection proves ownership but does not grant unattended signing permission. Start Live remains locked until a dedicated signer, secure swap execution, transaction reconciliation and recovery testing are verified.</div>',
+'<div class="lv-warning" id="lvHeadline">The Railway scanner observes real Solana markets. Real trading is disabled until secure wallet signing and risk checks are verified.</div>',
 '<div class="lv-grid">',
 '<div class="lv-tile"><div class="lv-kicker">PHANTOM OWNER</div><b id="lvOwner">Not connected</b></div>',
 '<div class="lv-tile"><div class="lv-kicker">RAILWAY SERVER</div><b id="lvServer">Not verified</b></div>',
@@ -64,12 +64,13 @@ node.innerHTML=[
 '<button id="lvStop" type="button" disabled>Stop new trades</button>',
 '<button id="lvEmergency" type="button" disabled>Emergency halt</button>',
 '<button id="lvReconcile" type="button" disabled>Reconcile pending trade</button></div>',
-'<p id="lvStatus" class="lv-info" role="status">Connect Phantom and verify your wallet ownership to inspect the private server.</p></div>',
+'<p id="lvStatus" class="lv-info" role="status">Connect Phantom and verify your wallet ownership to inspect the private server.</p>',
+'<h4>Start Live requirements</h4><ul class="lv-sub" id="lvRequirements"><li>Verify Phantom owner to load missing requirements.</li></ul></div>',
 '<div class="lv-section"><h3>Fund Bot From Phantom</h3>',
 '<p class="lv-sub">Choose an allocation from your existing SOL. The selected amount is only a preview; no funding or transaction authorization occurs here.</p>',
 '<div class="lv-amount"><label>Proposed amount (SOL)<input type="number" id="lvAllocate" min="0" step="0.000001" placeholder="0.1"></label>',
 '<button id="lvPreview" type="button" disabled>Preview allocation</button>',
-'<button id="lvFund" type="button" disabled>Fund manually in Phantom</button></div>',
+'</div>',
 '<p class="lv-sub" id="lvAllocation">Once the dedicated wallet and its recovery have been verified, copy its deposit address and send a small amount of SOL using Phantom’s normal Send screen. No private keys or seed phrases belong on this website.</p></div>',
 '<div class="lv-section"><div class="lv-top"><div><h3>Live Solana Market Scanner</h3>',
 '<p class="lv-sub">Observes real Solana market data and security screens. It does not simulate trades or move funds.</p></div>',
@@ -82,6 +83,15 @@ node.innerHTML=[
 '<div class="lv-table-wrap"><table class="lv-table"><thead><tr>',
 '<th>Token</th><th>Observed price (USD)</th><th>Liquidity (USD)</th><th>5m buying</th><th>Security</th><th>Candle setup</th>',
 '</tr></thead><tbody id="lvScanRows"></tbody></table></div></div>',
+'<div class="lv-section"><h3>Real Wallet Positions and Daily Limits</h3>',
+'<p class="lv-sub">Actual recorded positions with read-only Solana balance checks and DEX price observations. These prices are not executable sell quotes.</p>',
+'<div class="lv-grid"><div class="lv-tile"><div class="lv-kicker">OPEN POSITIONS</div><b id="lvPositionsCount">—</b></div>',
+'<div class="lv-tile"><div class="lv-kicker">SOL SPENT TODAY</div><b id="lvDailySpent">—</b></div>',
+'<div class="lv-tile"><div class="lv-kicker">REALIZED SOL LOSS TODAY</div><b id="lvDailyLoss">—</b></div></div>',
+'<p class="lv-info" id="lvPending">No pending transaction.</p>',
+'<div class="lv-table-wrap"><table class="lv-table"><thead><tr>',
+'<th>Token</th><th>Recorded quantity</th><th>Observed entry USD</th><th>Observed current USD</th><th>Stop USD</th><th>TP1 / TP2 / TP3 USD</th><th>Chain check</th>',
+'</tr></thead><tbody id="lvPositions"></tbody></table></div></div>',
 '<div class="lv-section"><div class="lv-top"><div><h3>Real Trade Journal</h3>',
 '<p class="lv-sub">Only finalized on-chain buys and sells from the dedicated trading wallet. Actual SOL/token price includes net wallet fees and rent adjustments.</p></div>',
 '<div class="lv-actions"><button id="lvJournalRefresh" type="button" disabled>Refresh records</button>',
@@ -97,7 +107,7 @@ node.innerHTML=[
 const existing=document.getElementById("ccCommandCenter");
 if(existing)existing.insertAdjacentElement("afterend",node);else main.append(node);
 let provider=null,ownerAddress="",serverStatus=null,token="",expiresAt=0,
-  solBalance=null,botBalance=null,ledger=null,scan=null,busy=false,lastPoll=0;
+  solBalance=null,botBalance=null,ledger=null,scan=null,portfolio=null,busy=false,lastPoll=0;
 const shorten=x=>x?x.slice(0,6)+"…"+x.slice(-6):"—";
 const validWallet=x=>typeof x==="string"&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(x);
 const loggedIn=()=>!!token&&Date.now()<expiresAt&&validWallet(ownerAddress);
@@ -123,7 +133,7 @@ async function api(path,method="GET",body=null,auth=true){
  }finally{clearTimeout(timeout);}
 }
 function reset(reason){
-  token="";expiresAt=0;ownerAddress="";serverStatus=null;ledger=null;solBalance=null;botBalance=null;scan=null;provider=null;
+  token="";expiresAt=0;ownerAddress="";serverStatus=null;ledger=null;portfolio=null;solBalance=null;botBalance=null;scan=null;provider=null;
   $("lvAllocation").textContent="Funding authorization reset; no funds moved.";
   setMsg(reason||"Disconnected. No live trading authorization.");
   draw();drawLedger();drawScan();
@@ -163,7 +173,7 @@ function draw(){
  $("lvStop").disabled=busy||!active;
  $("lvEmergency").disabled=busy||!(active||serverStatus?.pendingIntent);
  $("lvReconcile").disabled=busy||!loggedIn()||!serverStatus?.pendingIntent;
- $("lvFund").disabled=true; // Funding stays a manual Phantom transfer; do not auto-sign from the public website.
+ // Funding stays a manual Phantom transfer. No browser signing of automatic orders.
 }
 function drawScan(){
  $("lvScanStatus").textContent=!scan?"NOT CHECKED":
@@ -174,7 +184,7 @@ function drawScan(){
  $("lvScanTime").textContent=scan?.lastScanAt?
    "Latest observations: "+new Date(scan.lastScanAt).toLocaleString()+
     (scan.lastError?" · "+scan.lastError:"")+
-    " · Live market research only; zero executable orders":
+    (serverStatus?.liveTrading?" · Live worker active; scanner observations are not executed orders":" · Monitoring only; no trades being sent"):
    "Live scanner status not available.";
  const body=$("lvScanRows");body.replaceChildren();
  for(const item of (scan?.candidates||[]).slice(0,10)){
@@ -224,8 +234,8 @@ async function refreshAll(){
  ]);
  if(statusResult.status!=="fulfilled")throw statusResult.reason;
  serverStatus=statusResult.value;
- if(serverStatus.liveTrading===true&&serverStatus.liveExecutorReady!==true)
-   throw Error("Backend state inconsistent: real trading readiness unverified");
+ if(serverStatus.liveTrading===true&&!serverStatus.privateBotWallet)
+   throw Error("Live backend reports no dedicated wallet; investigate before continuing");
  if(balanceResult.status==="fulfilled"&&
     balanceResult.value.wallet===ownerAddress&&balanceResult.value.network==="solana-mainnet"&&
     Number.isFinite(Number(balanceResult.value.sol)))
