@@ -17,7 +17,10 @@
     "kill": "node main.cjs kill",
     "clear-kill": "node main.cjs clear-kill",
     "operator": "node operator-server.cjs",
-    "test:operator": "node operator-test.cjs"
+    "test:operator": "node operator-test.cjs",
+    "wallet:create": "node wallet-setup.cjs create",
+    "wallet:address": "node wallet-setup.cjs show-address",
+    "test:quote": "node quote-test.cjs"
   },
   "license": "UNLICENSED"
 }
