@@ -50,7 +50,10 @@ root.innerHTML=[
  '<button id="rhNew" type="button">New pools</button>',
  '<label class="rh-sub" for="rhMinLiq">Min liquidity</label>',
  '<select id="rhMinLiq"><option value="0">All</option><option value="10000">$10k+</option><option value="50000">$50k+</option><option value="100000">$100k+</option></select></div>',
- '<div class="rh-cards"><div class="rh-stat"><small>VISIBLE POOLS</small><b id="rhPoolCount">—</b></div>',
+ '<div class="rh-search"><label for="rhTokenSearch" class="rh-sub">Token contract (0x address)</label>',
+'<input id="rhTokenSearch" maxlength="42" placeholder="Paste any Robinhood Chain token contract…">',
+'<button id="rhLookupToken" type="button">Track contract</button></div>',
+'<div class="rh-cards"><div class="rh-stat"><small>VISIBLE POOLS</small><b id="rhPoolCount">—</b></div>',
  '<div class="rh-stat"><small>24H DEX VOLUME (VISIBLE)</small><b id="rhVolume">—</b></div>',
  '<div class="rh-stat"><small>OBSERVED LIQUIDITY (VISIBLE)</small><b id="rhLiquidity">—</b></div></div>',
  '<p class="rh-sub">DEX metrics describe trading pools, not unique holders or guaranteed sell liquidity. Pool lists are sampled, not complete chain totals.</p>',
@@ -83,7 +86,7 @@ function readWatch(){
  try{const items=JSON.parse(localStorage.getItem(storeKey)||"[]");
   return Array.isArray(items)?items.filter(x=>x&&(
     (x.kind==="stock"&&/^[A-Z0-9.^_-]{1,20}$/.test(x.key))||
-    (x.kind==="dex"&&validAddress(x.key)))).slice(0,50):[];
+    ((x.kind==="dex"||x.kind==="token")&&validAddress(x.key)))).slice(0,50):[];
  }catch(e){return [];}
 }
 state.watch=readWatch();
@@ -174,6 +177,39 @@ function selectDex(p){
  d.append(button(watching("dex",p.poolAddress)?"Remove watch":"Add to watchlist",
    ()=>{toggleWatch("dex",p.poolAddress,p.poolName||p.baseTokenSymbol);selectDex(p);}));
 }
+async function inspectToken(address){
+ const detail=$("rhDexDetail");detail.replaceChildren();detail.classList.remove("rh-hidden");
+ detail.append(el("p","Checking Robinhood Chain token "+shorter(address)+" against real DEX pools…"));
+ try{
+  const x=await api("/robinhood/token?address="+encodeURIComponent(address));
+  if(x.chainId!==4663||x.mode!=="READ_ONLY"||String(x.tokenAddress).toLowerCase()!==address.toLowerCase())
+   throw Error("Unexpected token lookup result");
+  detail.replaceChildren();
+  const label=x.topPool?.baseTokenSymbol||x.issuerListedStock?.symbol||shorter(address);
+  detail.append(el("h3",label+" · Robinhood Chain"));
+  detail.append(el("p","Token contract: "+x.tokenAddress));
+  detail.append(el("p","Issuer identity: "+(x.issuerCheck==="issuer-listed"?
+    "Exact contract appears in Robinhood's official issuer registry":
+    x.issuerCheck==="unavailable"?"Issuer verification unavailable":"NOT an issuer-listed Robinhood Stock Token"),
+    x.issuerCheck==="issuer-listed"?"rh-good":"rh-bad"));
+  detail.append(el("p",x.totalObservedPools+" observed base-token trading pools"+
+   (x.stale?" · STALE cached results":"")+". Not a complete liquidity inventory."));
+  if(x.topPool){
+   detail.append(el("p","Highest reported-liquidity pool: "+x.topPool.poolName+
+    " · Price "+money(x.topPool.priceUsd)+" · Liquidity "+money(x.topPool.liquidityUsd)+
+    " · 24h volume "+money(x.topPool.volume24hUsd)));
+   detail.append(el("p","5m transaction buys/sells "+(x.topPool.buys5m??"—")+
+    "/"+(x.topPool.sells5m??"—")+" · 24h change "+pct(x.topPool.change24hPct)));
+   detail.append(link("Open primary DEX pool","https://www.geckoterminal.com/robinhood/pools/"+encodeURIComponent(x.topPool.poolAddress)));
+  }else detail.append(el("p","No base-token DEX pool was returned. No price or liquidity estimate is available.","rh-bad"));
+  detail.append(document.createTextNode(" · "));
+  detail.append(link("Verify exact token contract on Blockscout","https://robinhoodchain.blockscout.com/token/"+x.tokenAddress));
+  detail.append(document.createTextNode(" · "));
+  detail.append(button(watching("token",address)?"Remove token watch":"Watch this token contract",
+   ()=>{toggleWatch("token",address,label);inspectToken(address);}));
+  status("Contract inspected on Robinhood Chain · issuer identity and on-chain DEX pricing remain separate.");
+ }catch(e){detail.replaceChildren();detail.append(el("p","Token data unavailable: "+e.message,"rh-bad"));}
+}
 function drawStocks(){
  const body=$("rhStockRows");body.replaceChildren();
  for(const x of (state.stocks?.stocks||[])){
@@ -226,6 +262,7 @@ function drawWatch(){
   row.append(document.createTextNode(" "));
   row.append(button("Inspect",async()=>{
    if(x.kind==="stock"){changeMode("stock");await selectStock(x.key);}
+   else if(x.kind==="token"){changeMode("dex");await inspectToken(x.key);}
    else{changeMode("dex");try{const result=await api("/robinhood/pool?address="+encodeURIComponent(x.key));
     selectDex(result.pool);}catch(e){status("Saved pool is temporarily unavailable: "+e.message);}}
   }));
@@ -267,6 +304,12 @@ $("rhWatchTab").addEventListener("click",()=>changeMode("watch"));
 $("rhTrending").addEventListener("click",()=>{state.view="trending";$("rhTrending").classList.add("rh-active");$("rhNew").classList.remove("rh-active");loadDex(true);});
 $("rhNew").addEventListener("click",()=>{state.view="new";$("rhNew").classList.add("rh-active");$("rhTrending").classList.remove("rh-active");loadDex(true);});
 $("rhMinLiq").addEventListener("change",drawDex);
+$("rhLookupToken").addEventListener("click",()=>{
+ const a=$("rhTokenSearch").value.trim();
+ if(!validAddress(a)){status("Paste a complete 0x + 40-character Robinhood Chain contract address.");return;}
+ inspectToken(a);
+});
+$("rhTokenSearch").addEventListener("keydown",e=>{if(e.key==="Enter")$("rhLookupToken").click();});
 $("rhRefresh").addEventListener("click",()=>{
  if(state.mode==="dex")loadDex(true);else if(state.mode==="stock")loadStocks();else drawWatch();
 });
