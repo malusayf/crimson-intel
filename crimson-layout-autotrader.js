@@ -51,7 +51,7 @@
 
     const intro=document.createElement("div");intro.id="ciMissionIntro";
     intro.innerHTML='<h2>⚔ Crimson Mission Control</h2>'+
-      '<p>All your Crimson systems in one place. Track a token above, then switch sections for market analysis, positions, autonomous trading, portfolio and alerts.</p>'+
+      '<p>Track Solana or Robinhood Chain tokens in one dashboard. Both networks share Position Intelligence, Guardian, Portfolio and Alerts. AutoTrader execution remains Solana-only.</p>'+
       '<div id="ciMissionStatus" aria-live="polite">Tracking idle · choose a Solana token above</div>';
 
     const nav=document.createElement("nav");nav.id="ciMissionNav";
