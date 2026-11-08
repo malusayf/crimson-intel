@@ -9,7 +9,8 @@
   const $=id=>document.getElementById(id);
   if($("crimsonMarketRadar"))return;
   const DEX="https://api.dexscreener.com";
-  const MINT=/^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+  const MINT=/^(?:[1-9A-HJ-NP-Za-km-z]{32,44}|0x[a-fA-F0-9]{40})$/;
+  const keyed=(mint,chain)=>chain+"|"+(chain==="robinhood"?mint.toLowerCase():mint);
   const num=x=>x==null||x===""?NaN:Number(x);
   const clamp=n=>Math.max(0,Math.min(100,Math.round(n)));
   const usd=x=>Number.isFinite(x)?"$"+x.toLocaleString("en-US",{maximumFractionDigits:Math.abs(x)<1?5:2}):"—";
@@ -185,7 +186,15 @@
 
   function redrawTracked(){
     if(!activePair)return;
-    const m=activeMint, a=evaluate(activePair,lastLiq.get(m)),sec=security.get(m);
+    const m=activeMint,k=keyed(m,activePair.chainId);
+    const a=activePair.dataStale?
+      {enough:false,buyShare:null,opp:null,danger:null,pump:false,dump:false,dangerous:false,
+        decision:"STALE DATA · NO ASSESSMENT",reasons:["Cached observations are stale; live risk and entry confidence are withheld."]}:
+      activePair.priceType==="issuer-reference"?
+      {enough:false,buyShare:null,opp:null,danger:null,pump:false,dump:false,dangerous:false,
+        decision:"ISSUER PRICE REFERENCE ONLY",reasons:["No DEX liquidity, trades or executable sell quote. A stock-token issuer price is not a DEX signal."]}:
+      evaluate(activePair,lastLiq.get(k));
+    const sec=activePair.chainId==="solana"?security.get(k):null;
     $("cmBuy").textContent=a.buyShare===null?"—":a.buyShare.toFixed(1)+"%";
     const buyText=activePair.txns?.m5||{};
     $("cmBuyDetails").textContent=(num(buyText.buys)||0)+" buys / "+(num(buyText.sells)||0)+" sells · count-based";
@@ -195,6 +204,9 @@
     $("cmSecurity").textContent=sec?.verified?(sec.reject?"RISK FLAGGED":"SCREENED / NOT GUARANTEED"):"UNVERIFIED";
     $("cmSecurityInfo").textContent=sec?.verified?
       (sec.notes?.[0]||"Provider report available; not a guarantee"):
+      activePair.chainId==="robinhood"?
+      (activePair.issuerListed?"Issuer identity matches the official contract; this does NOT verify token safety or trade execution.":
+        "Robinhood Chain contract security is not independently verified."):
       "No verified token-security report; cannot assess rug probability.";
     const final=assessmentWithSecurity(a,sec);
     $("cmDecision").textContent=final;
@@ -216,24 +228,27 @@
       if($("buybar"))$("buybar").style.width=a.enough?a.buyShare+"%":"0%";
       if($("sellbar"))$("sellbar").style.width=a.enough?(100-a.buyShare)+"%":"0%";
     }
-    $("cmLiveStatus").textContent="Tracking "+(activePair.baseToken?.symbol||"SOL token")+" · "+new Date().toLocaleTimeString()+" · selected DEX pool";
-    window.CRIMSON_LATEST_INTELLIGENCE = {mint:m, market:a, security:sec||null, pair:activePair, updatedAt:Date.now()};
+    $("cmLiveStatus").textContent="Tracking "+(activePair.baseToken?.symbol||"token")+" · "+
+      (activePair.chainId==="robinhood"?"Robinhood Chain":"Solana")+" · "+
+      (activePair.dataStale?"STALE data":"observed "+new Date().toLocaleTimeString())+
+      " · "+(activePair.priceType==="issuer-reference"?"issuer reference, not an executable quote":"DEX pool");
+    window.CRIMSON_LATEST_INTELLIGENCE = {mint:m,chainId:activePair.chainId,market:a, security:sec||null, pair:activePair, updatedAt:Date.now()};
     window.dispatchEvent(new CustomEvent("crimson:unified-intelligence", {detail:window.CRIMSON_LATEST_INTELLIGENCE}));
-    lastLiq.set(m,{liquidity:num(activePair?.liquidity?.usd),time:Date.now()});
+    if(!activePair.dataStale)lastLiq.set(k,{liquidity:num(activePair?.liquidity?.usd),time:Date.now()});
   }
 
   // The original tracker already fetches the same token every ~20s.
   // Consume its snapshot rather than independently polling it a second time.
   window.addEventListener("crimson:market-snapshot",ev=>{
     const mint=ev.detail?.mint,pair=ev.detail?.pair;
-    if(!MINT.test(mint||"")||pair?.chainId!=="solana")return;
-    activeMint=mint;activePair=pair;latestByMint.set(mint,pair);
+    if(!MINT.test(mint||"")||!["solana","robinhood"].includes(pair?.chainId))return;
+    activeMint=mint;activePair=pair;latestByMint.set(keyed(mint,pair.chainId),pair);
     redrawTracked();
   });
   window.addEventListener("crimson:tracked-change",ev=>{
     const mint=ev.detail?.mint||"";
-    if(MINT.test(mint)&&mint!==activeMint){
-      activeMint=mint;activePair=null;
+    if(!MINT.test(mint)||mint!==activeMint||ev.detail?.chainId!==activePair?.chainId){
+      activeMint=MINT.test(mint)?mint:"";activePair=null;
       for(const id of ["cmBuy","cmOpportunity","cmDanger"])$(id).textContent="—";
       $("cmDecision").textContent="WAIT · LOADING NEW TOKEN";
       $("cmLiveStatus").textContent="Loading "+mint.slice(0,8)+"…";
@@ -241,13 +256,13 @@
   });
   window.addEventListener("crimson:security-check",ev=>{
     const mint=ev.detail?.mint,report=ev.detail?.report;
-    if(!MINT.test(mint||"")||!report)return;
-    security.set(mint,report);
+    if(!MINT.test(mint||"")||!report||activePair?.chainId!=="solana")return;
+    security.set(keyed(mint,"solana"),report);
     if(mint===activeMint)redrawTracked();
   });
   if(window.CRIMSON_LATEST_MARKET){
     const snap=window.CRIMSON_LATEST_MARKET;
-    if(MINT.test(snap.mint||"")&&snap.pair?.chainId==="solana"){
+    if(MINT.test(snap.mint||"")&&["solana","robinhood"].includes(snap.pair?.chainId)){
       activeMint=snap.mint;activePair=snap.pair;redrawTracked();
     }
   }
