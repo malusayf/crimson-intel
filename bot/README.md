@@ -1,3 +1,9 @@
+## Private hosting and bot wallet setup
+
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for Railway service configuration, Phantom operator-login, a local encrypted dedicated-wallet generator, `wallet:create` / `wallet:verify` / `wallet:address` commands, and the owner-only Jupiter **quote-preview** adapter.
+
+**Not yet deployed or live**: The private operator must be connected to an always-on host. This repo deliberately has NO live transaction signer and NO swap-execution worker; `/start` returns an explicit 409 until those capabilities are separately developed and validated. Never fund the generated wallet until recoverability and the secure executor are tested.
+
 # ⚔ Crimson AutoTrader — Autonomous Paper Engine
 
 **Status: working code foundation / PAPER ONLY. Not a live or deployed trading service.**  
