@@ -10,6 +10,7 @@ const {JupiterQuotePreview}=require("./jupiter-quote.cjs");
 const {LiveTradeJournal}=require("./live-journal.cjs");
 const {LiveScanner}=require("./live-scanner.cjs");
 const {LiveController}=require("./live-controller.cjs");
+const {RobinhoodMarket}=require("./robinhood-market.cjs");
 const {URL}=require("node:url");
 const B58="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const origin=(process.env.BOT_FRONTEND_ORIGIN||"https://malusayf.github.io").replace(/\/$/,"");
@@ -80,6 +81,7 @@ const marketScanner=process.env.BOT_LIVE_SCANNER_ENABLED==="true"?
   new LiveScanner({intervalMs:180000,log:msg=>console.log("[CRIMSON LIVE SCAN]",msg)}):null;
 const liveController=new LiveController({scanner:marketScanner,journal:liveJournal,
   log:msg=>console.log(msg)});
+const robinhoodMarket=new RobinhoodMarket();
 function setSecurityHeaders(res){
  res.setHeader("cache-control","no-store");
  res.setHeader("x-content-type-options","nosniff");
@@ -158,6 +160,35 @@ const server=http.createServer(async(req,res)=>{
   if(!rateLimit(req,req.url.startsWith("/auth")?"auth":"generic"))
     return send(res,429,{error:"Rate limit reached"});
   prune();
+  // Public read-only market observations: no account login or wallet access required.
+  // Every upstream URL is fixed server-side; these endpoints can NEVER submit an order.
+  if(req.method==="GET"&&url.pathname==="/robinhood/pools"){
+   const view=url.searchParams.get("view")||"trending";
+   if(!["trending","new"].includes(view))
+     return send(res,400,{error:"Invalid Robinhood pool view"});
+   try{return send(res,200,await robinhoodMarket.pools(view));}
+   catch(e){return send(res,503,{error:"Robinhood Chain DEX feed unavailable. No prices inferred."});}
+  }
+  if(req.method==="GET"&&url.pathname==="/robinhood/stocks"){
+   const q=url.searchParams.get("q")||"";
+   if(q.length>60)return send(res,400,{error:"Search is too long"});
+   try{return send(res,200,await robinhoodMarket.stocks(q));}
+   catch(e){return send(res,503,{error:"Official Robinhood Stock Token registry unavailable."});}
+  }
+  if(req.method==="GET"&&url.pathname==="/robinhood/stock-quote"){
+   const symbol=url.searchParams.get("symbol")||"";
+   if(!/^[A-Za-z0-9.^_-]{1,20}$/.test(symbol))
+     return send(res,400,{error:"Valid ticker required"});
+   try{return send(res,200,await robinhoodMarket.quote(symbol));}
+   catch(e){return send(res,503,{error:"Official Robinhood Stock Token quote unavailable."});}
+  }
+  if(req.method==="GET"&&url.pathname==="/robinhood/pool"){
+   const address=url.searchParams.get("address")||"";
+   if(!/^0x[a-fA-F0-9]{40}$/.test(address))
+     return send(res,400,{error:"Valid Robinhood Chain pool address required"});
+   try{return send(res,200,await robinhoodMarket.pool(address));}
+   catch(e){return send(res,503,{error:"Robinhood Chain pool detail unavailable."});}
+  }
   if(url.pathname==="/auth/challenge"&&req.method==="POST"){
     if(!owner)return send(res,503,{error:"Owner public key has not been configured"});
     const body=await json(req);
