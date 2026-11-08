@@ -87,6 +87,22 @@ p,
   min-width: 0;
 }
 
+#ciChainSelect,
+#ccChain {
+  background: #090e20;
+  color: #f5f5ff;
+  border: 1px solid #465071;
+  border-radius: 10px;
+  padding: 12px;
+  font: inherit;
+}
+#ciChainSelect {flex: 0 0 auto;}
+@media (max-width: 650px) {
+  .flex.search {flex-wrap: wrap;}
+  #ciChainSelect {max-width: none!important;width: 100%;flex: 1 0 100%;}
+  .flex.search input {flex: 1 1 180px;}
+}
+
 input {
   background: #090e20;
   border: 1px solid #465071;
@@ -1601,14 +1617,14 @@ a {
 })();
 </script>
 
-<script src="./crimson-radar.js" defer></script>
+<script src="./crimson-radar.js?v=20261108-unified-risk" defer></script>
 <script src="./crimson-safety-scout.js" defer></script>
-<script src="./crimson-position-intelligence.js" defer></script>
-<script src="./crimson-guardian.js" defer></script>
-<script src="./crimson-command-center.js" defer></script>
+<script src="./crimson-position-intelligence.js?v=20261108-cross-chain-tpsl" defer></script>
+<script src="./crimson-guardian.js?v=20261108-cross-chain-locks" defer></script>
+<script src="./crimson-command-center.js?v=20261108-cross-chain-portfolio" defer></script>
 <script src="./crimson-live-console.js?v=20261108-work-monitor-alerts-v3" defer></script>
-<script src="./crimson-robinhood.js?v=20261108-rh-contract-v2" defer></script>
-<script src="./crimson-layout-autotrader.js?v=20261108-robinhood-tab-v2" defer></script>
+<script src="./crimson-robinhood.js?v=20261108-shared-track-v3" defer></script>
+<script src="./crimson-layout-autotrader.js?v=20261108-shared-track-v3" defer></script>
 
 <!-- CRIMSON PROJECT INTEL - PASTE BEFORE </body> -->
 <script>
