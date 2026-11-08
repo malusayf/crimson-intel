@@ -134,6 +134,10 @@
   }
   async function updateCandles(force=false){
     if(!current||!validFor(current.chainId,current.mint)||requestBusy)return;
+    if(current.pair?.dataStale){
+      candles=null;feedError="Price data stale; confirmed structure plan temporarily unavailable. You may enter a manual SL for hypothetical targets.";
+      render();return;
+    }
     if(!validFor(current.chainId,current.pair?.pairAddress)){
       candles=null;feedError="No matching DEX pool for completed candles. Enter a manual SL to calculate illustrative TP1–TP3; do not treat issuer reference prices as executable.";
       render();return;
@@ -195,6 +199,8 @@
     const m=intel?.market,sec=security||intel?.security;
     if(!pos)return {title:"ENTER POSITION DETAILS",reason:"Enter your actual purchase price and investment amount in the existing calculator.",type:"yellow"};
     if(!current||!(pos.market>0))return {title:"WAIT · TRACK A TOKEN",reason:"Select a token on Solana or Robinhood Chain to review observed prices.",type:"yellow"};
+    if(current?.pair?.dataStale)return {title:"STALE DATA · REVIEW MANUALLY",
+      reason:"The market feed is stale. No live risk or TP/SL trigger can be verified; illustrative levels are still displayed, not executed.",type:"yellow"};
     if(!plan)return {title:"NO VERIFIED TRADE PLAN",reason:(finite(n($("cpManualStop").value))?
        "Manual stop must be positive and below your entry price. ":"")+feedError+
        " Without structure or a valid manual SL, target prices cannot be calculated.",type:"yellow"};
