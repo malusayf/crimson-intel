@@ -39,6 +39,7 @@ box.innerHTML=[
 '<label>Private operator server HTTPS URL (or localhost for development)',
 '<input id="clServerUrl" type="url" spellcheck="false" placeholder="https://your-private-trading-api.example"></label>',
 '<div class="cl-actions"><button id="clConnect" type="button">Connect Phantom</button>',
+'<button id="clCopyAddress" type="button" disabled>Copy public address</button>',
 '<button id="clAuthorize" type="button" disabled>Verify wallet ownership</button>',
 '<button id="clCheck" type="button" disabled>Check backend</button></div>',
 '<div class="cl-actions"><button id="clStart" type="button" disabled>Start Live · Locked</button>',
@@ -71,6 +72,7 @@ function update(){
  $("clExecution").className="cl-value "+(ready?"cl-on":"cl-off");
  $("clMode").textContent=backend?.liveTrading===true?"LIVE TRADING REPORTED ACTIVE":"LIVE TRADING OFF";
  $("clMode").className=backend?.liveTrading===true?"cl-on":"cl-off";
+ $("clCopyAddress").disabled=busy||!address;
  $("clAuthorize").disabled=busy||!address||!base;
  $("clCheck").disabled=busy||!authorized;
  $("clConnect").disabled=busy;
@@ -117,6 +119,13 @@ $("clConnect").addEventListener("click",async()=>{
    status("Phantom connected: "+address+". This connection does not authorize automatic spending.");
  }catch(e){status("Phantom connection unsuccessful: "+String(e.message));}
  finally{busy=false;update();}
+});
+$("clCopyAddress").addEventListener("click",async()=>{
+ if(!address)return;
+ try{
+  await navigator.clipboard.writeText(address);
+  status("Public Phantom address copied. This address is safe to share for configuring your owner-only bot access. Never share your recovery phrase.");
+ }catch(e){status("Clipboard unavailable. Your PUBLIC wallet address is: "+address);}
 });
 $("clAuthorize").addEventListener("click",async()=>{
  if(busy||!address||!base)return;busy=true;update();
