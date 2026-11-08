@@ -305,8 +305,8 @@ a {
   <div class="tag">KNIGHTSHADE ANALYTICS</div>
   <h1>⚔ CRIMSON INTEL</h1>
   <div class="muted">
-    One coin. Deeper intelligence.
-    Solana market dashboard.
+    One token. Two networks. Deeper intelligence.
+    Solana & Robinhood Chain research dashboard.
   </div>
 </header>
 
@@ -315,14 +315,18 @@ a {
 <!-- TOKEN SEARCH -->
 
 <section class="panel">
-  <h2>Track a Solana coin</h2>
+  <h2>Track Solana or Robinhood Chain</h2>
 
   <div class="flex search">
+    <select id="ciChainSelect" aria-label="Token network" style="min-width:156px;max-width:210px">
+      <option value="solana">Solana</option>
+      <option value="robinhood">Robinhood Chain</option>
+    </select>
     <input
       id="mint"
-      placeholder="Paste token mint address"
+      placeholder="Paste Solana mint address"
       spellcheck="false"
-      aria-label="Solana token address"
+      aria-label="Token contract or mint address"
     >
 
     <button id="track">
@@ -331,8 +335,7 @@ a {
   </div>
 
   <div class="status" id="status">
-    Enter a token mint address.
-    Updates every 20 seconds while the tab is active.
+    Select the blockchain and enter its token contract address. Refreshes while the tab is open; provider data may be delayed.
   </div>
 </section>
 
@@ -725,6 +728,7 @@ a {
 
 </main>
 
+<script src="./crimson-chain-data.js?v=20261108-unified-v1"></script>
 <script>
 (() => {
   'use strict';
@@ -738,11 +742,14 @@ a {
   let busy = false;
   let upTriggered = false;
   let downTriggered = false;
+  let refreshAgain = false;
+  const chain=()=> $('ciChainSelect').value;
+  const validAddress=m=>window.CrimsonChainData?.isValid(chain(),m)===true;
 
   // FORMAT CURRENCY
 
   const usd = n =>
-    Number.isFinite(Number(n))
+    n!==null&&n!==undefined&&n!==''&&Number.isFinite(Number(n))
       ? new Intl.NumberFormat('en-US', {
           style: 'currency',
           currency: 'USD',
@@ -757,6 +764,7 @@ a {
   // FORMAT TOKEN PRICES
 
   const px = n => {
+    if(n===null||n===undefined||n==='')return '—';
     n = Number(n);
 
     return !Number.isFinite(n)
@@ -1241,61 +1249,13 @@ a {
     $('track').disabled = true;
 
     try {
-
-      const res = await fetch(
-        'https://api.dexscreener.com/token-pairs/v1/solana/' +
-        encodeURIComponent(mint),
-        {
-          cache: 'no-store'
-        }
-      );
-
-      if (!res.ok) {
-
-        throw Error(
-          'API returned HTTP ' +
-          res.status
-        );
-      }
-
-      const pairs =
-        await res.json();
-
-      if (
-        !Array.isArray(pairs) ||
-        !pairs.length
-      ) {
-
-        throw Error(
-          'No DEX pool found for this token mint.'
-        );
-      }
-
-      pair =
-        pairs
-          .filter(
-            p =>
-              p.baseToken?.address === mint
-          )
-          .sort(
-            (a, b) =>
-              (Number(b.liquidity?.usd) || 0) -
-              (Number(a.liquidity?.usd) || 0)
-          )[0] ||
-
-        pairs.sort(
-          (a, b) =>
-            (Number(b.liquidity?.usd) || 0) -
-            (Number(a.liquidity?.usd) || 0)
-        )[0];
-
-      const base =
-        pair.baseToken?.address === mint
-          ? pair.baseToken
-          : pair.quoteToken;
-
-      price =
-        Number(pair.priceUsd) || 0;
+      const requestedMint=mint,requestedChain=chain();
+      const response=await window.CrimsonChainData.load(requestedChain,requestedMint);
+      if(requestedMint!==mint||requestedChain!==chain())return;
+      pair=response.pair;
+      const base=pair.baseToken;
+      const observed=Number(pair.priceUsd);
+      price=pair.priceUsd!==null&&Number.isFinite(observed)&&observed>0?observed:NaN;
 
       // MARKET INFORMATION
 
@@ -1306,10 +1266,11 @@ a {
         ')';
 
       $('pool').textContent =
-        'Selected pool: ' +
-        (pair.dexId || 'DEX') +
-        ' · ' +
-        (pair.pairAddress || 'unknown');
+        window.CrimsonChainData.networkLabel(requestedChain) + ' · ' +
+        (pair.priceType==='issuer-reference'?'Issuer reference only · no DEX liquidity':
+        'Selected pool: '+(pair.dexId||'DEX')+' · '+(pair.pairAddress||'unknown'))+
+        (pair.issuerListed?' · issuer-listed Stock Token (not a safety certification)':'')+
+        (pair.dataStale?' · STALE DATA':'');
 
       $('price').textContent =
         px(price);
@@ -1338,10 +1299,9 @@ a {
         pair.txns?.h24 || {};
 
       $('tx24').textContent =
-        (tx24.buys || 0) +
-        ' buys / ' +
-        (tx24.sells || 0) +
-        ' sells';
+        tx24.buys==null||tx24.sells==null?
+        '24h DEX transactions unavailable':
+        tx24.buys+' buys / '+tx24.sells+' sells';
 
       // MONEY FLOW PRESSURE
 
@@ -1390,10 +1350,10 @@ a {
         (100 - share) + '%';
 
       $('buys').textContent =
-        'Buys: ' + buys;
+        'Buys: ' + (tx.buys==null?'—':buys);
 
       $('sells').textContent =
-        'Sells: ' + sells;
+        'Sells: ' + (tx.sells==null?'—':sells);
 
       $('vol5').textContent =
         usd(pair.volume?.m5);
@@ -1403,27 +1363,24 @@ a {
 
       // DEX CHART
 
-      const url =
-        'https://dexscreener.com/solana/' +
-        encodeURIComponent(
-          pair.pairAddress || mint
-        );
-
-      $('dexlink').href =
-        pair.url || url;
-
-      if (
-        $('chart').dataset.pair !==
-        pair.pairAddress
-      ) {
-
-        $('chart').src =
-          url +
-          '?embed=1&theme=dark&trades=0&info=0';
-
-        $('chart').dataset.pair =
-          pair.pairAddress || mint;
+      const url=pair.url||(
+        requestedChain==='solana'?
+        'https://dexscreener.com/solana/'+encodeURIComponent(pair.pairAddress||mint):
+        'https://robinhoodchain.blockscout.com/token/'+mint);
+      $('dexlink').href=url;
+      $('dexlink').textContent=requestedChain==='solana'?'DEX Screener ↗':
+        pair.priceType==='issuer-reference'?'Issuer contract explorer ↗':'Robinhood Chain DEX pool ↗';
+      const embedKey=requestedChain+'|'+(pair.pairAddress||mint);
+      if($('chart').dataset.pair!==embedKey){
+        $('chart').src=requestedChain==='solana'?url+'?embed=1&theme=dark&trades=0&info=0':'about:blank';
+        $('chart').dataset.pair=embedKey;
       }
+      const note=$('chart').nextElementSibling;
+      if(note&&note.classList.contains('note'))note.textContent=requestedChain==='solana'?
+        'DEX Screener chart. If embedding is blocked, open the link above.':
+        pair.priceType==='issuer-reference'?
+        'No DEX price chart exists for this issuer reference. Open the issuer contract above.':
+        'Robinhood Chain DEX pool chart opens with the link above. No synthetic price chart is shown.';
 
       // UPDATE ALL INTELLIGENCE SYSTEMS
 
@@ -1434,15 +1391,17 @@ a {
       // Broadcast the SAME selected-pool snapshot to the unified market engine.
       // No extra tracked-token polling; analytics must not independently choose
       // a different pool from the chart and investment calculator.
-      window.CRIMSON_LATEST_MARKET = { mint, pair, updatedAt: Date.now() };
+      window.CRIMSON_LATEST_MARKET = { mint,chainId:requestedChain,pair, updatedAt: Date.now() };
       window.dispatchEvent(new CustomEvent('crimson:market-snapshot', {
         detail: window.CRIMSON_LATEST_MARKET
       }));
 
       status(
-        'Updated ' +
-        new Date().toLocaleTimeString() +
-        ' · next update in ~20 seconds.'
+        (pair.dataStale?'STALE CACHED observation · ':'Updated ')+
+        window.CrimsonChainData.networkLabel(requestedChain)+' at '+
+        new Date().toLocaleTimeString()+
+        (pair.priceType==='issuer-reference'?' · issuer reference; no executable DEX quote':'')+
+        ' · browser checks ~20s; upstream caches vary.'
       );
 
     } catch (e) {
@@ -1457,6 +1416,7 @@ a {
 
       busy = false;
       $('track').disabled = false;
+      if(refreshAgain){refreshAgain=false;setTimeout(refresh,0);}
     }
   }
 
@@ -1467,21 +1427,15 @@ a {
     const m =
       $('mint').value.trim();
 
-    if (
-      !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m)
-    ) {
-
-      status(
-        'Enter a valid-looking Solana mint address.',
-        true
-      );
-
+    if(!validAddress(m)){
+      status('Enter a valid '+(chain()==='solana'?'Solana mint':'Robinhood Chain 0x contract')+' address.',true);
       return;
     }
-
-    mint = m;
+    mint=m;pair=null;price=NaN;
+    window.CRIMSON_LATEST_MARKET=null;
+    if(busy)refreshAgain=true;
     window.dispatchEvent(new CustomEvent('crimson:tracked-change', {
-      detail: { mint: m }
+      detail: { mint: m,chainId:chain() }
     }));
 
     upTriggered = false;
@@ -1508,6 +1462,29 @@ a {
   // BUTTONS
 
   $('track').onclick = start;
+  $('ciChainSelect').addEventListener('change',()=>{
+    const isRH=chain()==='robinhood';
+    $('mint').placeholder=isRH?'Paste Robinhood Chain 0x token contract':'Paste Solana mint address';
+    $('mint').value='';mint='';pair=null;price=NaN;
+    window.CRIMSON_LATEST_MARKET=null;
+    if(interval){clearInterval(interval);interval=null;}
+    $('chart').src='about:blank';$('chart').dataset.pair='';
+    for(const id of ['name','price','cap','liq','vol','score','signal','entryScore','entryRisk'])
+      if($(id))$(id).textContent='—';
+    window.dispatchEvent(new CustomEvent('crimson:tracked-change',{
+      detail:{mint:null,chainId:chain()}
+    }));
+    status('Enter a '+(isRH?'Robinhood Chain 0x token contract':'Solana mint')+' to track on this network.');
+  });
+  window.CRIMSON_TRACK_ASSET=(network,address)=>{
+    if(!window.CrimsonChainData.isValid(network,address))return false;
+    $('ciChainSelect').value=network;
+    $('mint').value=address;
+    start();
+    $('ci-tab-overview')?.click();
+    $('mint').scrollIntoView({behavior:'smooth',block:'center'});
+    return true;
+  };
 
   $('mint').addEventListener(
     'keydown',
@@ -1616,9 +1593,9 @@ a {
     ).get('token');
 
   if (q) {
-
-    $('mint').value = q;
-
+    const network=new URLSearchParams(location.search).get('chain');
+    if(network==='robinhood')$('ciChainSelect').value='robinhood';
+    $('mint').value=q;
     start();
   }
 
