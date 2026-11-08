@@ -1,0 +1,255 @@
+"use strict";
+/* Crimson LIVE ONLY executor. No paper trading, no public arbitrary-order endpoint.
+ * Starts only with a distinct, limited-funds signer and explicit enablement.
+ * Journaled pending intents are never retried as fresh orders.
+ */
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const Risk=require('./risk-engine.cjs');
+const {PublicSolanaFeeds}=require('./providers.cjs');
+const {LiveTradeJournal}=require('./live-journal.cjs');
+const SOL='So11111111111111111111111111111111111111112';
+const ABC='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function b58(bytes){let n=0n;for(const b of bytes)n=n*256n+BigInt(b);let s='';while(n>0n){s=ABC[Number(n%58n)]+s;n/=58n;}for(const b of bytes){if(b!==0)break;s='1'+s;}return s;}
+function amount(x){return typeof x==='string'&&/^[1-9][0-9]*$/.test(x)&&BigInt(x)<=(2n**64n-1n);}
+function positiveNumber(x){const n=Number(x);return Number.isFinite(n)&&n>0?n:NaN;}
+function atomicSol(n){if(!(n>0&&Number.isSafeInteger(Math.round(n*1e9))))throw Error('Invalid SOL amount');return BigInt(Math.round(n*1e9));}
+function atomicRaw(x){if(!/^(0|[1-9]\d*)$/.test(String(x)))throw Error('Invalid integer amount');return BigInt(x);}
+function persist(file,obj){
+ fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});
+ const tmp=file+'.tmp-'+process.pid+'-'+crypto.randomBytes(4).toString('hex');
+ const fd=fs.openSync(tmp,'wx',0o600);
+ try{fs.writeFileSync(fd,JSON.stringify(obj,null,2)+'\n');fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+ fs.renameSync(tmp,file);
+ try{const d=fs.openSync(path.dirname(file),'r');try{fs.fsyncSync(d);}finally{fs.closeSync(d);}}catch(e){if(process.platform!=='win32')throw e;}
+}
+function loadState(file){
+ try{const stat=fs.statSync(file);if(stat.size>2e6)throw Error('State exceeds safety limit');
+  const s=JSON.parse(fs.readFileSync(file,'utf8'));
+  if(s.version!==1||!s.positions||!Array.isArray(s.positions)||!('pending' in s))throw Error('Unknown state version');
+  return s;
+ }catch(e){if(e.code==='ENOENT')return {version:1,positions:[],pending:null,day:'',dailyBuys:0,dailySpent:'0',dailyLoss:'0',lastError:''};throw e;}
+}
+class LiveController{
+ constructor({env=process.env,scanner=null,journal=null,feeds=new PublicSolanaFeeds(),fetchFn=globalThis.fetch,log=console.log}={}){
+  this.env=env;this.scanner=scanner;this.feeds=feeds;this.fetchFn=fetchFn;this.log=log;
+  this.directory=env.BOT_DATA_DIR||'';
+  this.file=this.directory?path.join(this.directory,'live-controller-v1.json'):'';
+  this.journal=journal||new LiveTradeJournal({directory:this.directory,wallet:env.BOT_DEDICATED_WALLET_ADDRESS});
+  this.running=false;this.busy=false;this.timer=null;this.signer=null;
+  this.state=null;
+  this.lastTickAt=null;
+  this.lastError='';
+ }
+ requirements(){
+  const e=this.env,missing=[];
+  const expected=e.BOT_DEDICATED_WALLET_ADDRESS||'';
+  if(e.BOT_LIVE_EXECUTION_ENABLED!=='true')missing.push('BOT_LIVE_EXECUTION_ENABLED');
+  if(e.BOT_RECOVERY_VERIFIED!=='true')missing.push('BOT_RECOVERY_VERIFIED');
+  if(e.BOT_LIVE_PILOT_APPROVED!=='true')missing.push('BOT_LIVE_PILOT_APPROVED');
+  if(!this.directory||this.directory==='/tmp')missing.push('Persistent BOT_DATA_DIR');
+  if(!this.scanner)missing.push('Live market scanner');
+  if(!e.BOT_OWNER_PUBLIC_KEY)missing.push('Phantom owner authentication');
+  if(!e.JUPITER_API_KEY)missing.push('JUPITER_API_KEY');
+  if(!/^https:\/\//.test(e.SOLANA_RPC_URL||''))missing.push('Private SOLANA_RPC_URL');
+  if(!Risk.mintOK(expected)||expected===e.BOT_OWNER_PUBLIC_KEY)missing.push('Distinct BOT_DEDICATED_WALLET_ADDRESS');
+  const seed=e.BOT_SIGNER_SEED_BASE64||'';
+  if(!/^[A-Za-z0-9+/]{43}=$/.test(seed)||Buffer.from(seed,'base64').length!==32)
+   missing.push('BOT_SIGNER_SEED_BASE64 (32-byte dedicated wallet seed)');
+  const maxTrade=Number(e.BOT_MAX_TRADE_SOL),maxDay=Number(e.BOT_MAX_DAILY_SPEND_SOL),
+   maxLoss=Number(e.BOT_MAX_DAILY_LOSS_SOL),maxOpen=Number(e.BOT_MAX_OPEN_LIVE),
+   maxBuys=Number(e.BOT_MAX_DAILY_LIVE_BUYS);
+  if(!(maxTrade>=.001&&maxTrade<=.05&&maxDay>=maxTrade&&maxDay<=.1&&
+   maxLoss>0&&maxLoss<=.03&&Number.isInteger(maxOpen)&&maxOpen>=1&&maxOpen<=2&&
+   Number.isInteger(maxBuys)&&maxBuys>=1&&maxBuys<=4))missing.push('Conservative live risk limits');
+  if(this.file&&!this.state){try{this.state=loadState(this.file);}catch(e){missing.push('Persistent state integrity');}}
+  if(this.state?.pending&&!this.running)missing.push('Unresolved on-chain trade intent');
+  return {ready:missing.length===0,missing,wallet:Risk.mintOK(expected)?expected:null,
+   signerConfigured:!!seed,riskControlsReady:Number.isFinite(maxTrade)&&Number.isFinite(maxLoss),
+   recoveryVerified:e.BOT_RECOVERY_VERIFIED==='true',onchainConfirmationReady:/^https:\/\//.test(e.SOLANA_RPC_URL||'')};
+ }
+ ensureSigner(){
+  if(this.signer)return this.signer;
+  const seed=Buffer.from(this.env.BOT_SIGNER_SEED_BASE64||'','base64');
+  if(seed.length!==32)throw Error('Dedicated signer seed missing or invalid');
+  try{
+   const {Keypair}=require('@solana/web3.js');
+   const k=Keypair.fromSeed(new Uint8Array(seed));
+   if(k.publicKey.toBase58()!==this.env.BOT_DEDICATED_WALLET_ADDRESS)
+     throw Error('Signer does not match the dedicated wallet address');
+   this.signer=k;return k;
+  }finally{seed.fill(0);}
+ }
+ status(){
+  const r=this.requirements();return {
+   walletReady:r.signerConfigured&&!!r.wallet,liveExecutorReady:r.ready,
+   recoveryVerified:r.recoveryVerified,riskControlsReady:r.ready,
+   onchainConfirmationReady:r.onchainConfirmationReady,
+   liveTrading:this.running,privateBotWallet:r.wallet,missing:r.missing,
+   pendingIntent:!!this.state?.pending,positions:this.state?.positions?.length||0,
+   dailyBuys:this.state?.dailyBuys||0,lastTickAt:this.lastTickAt,
+   lastError:this.lastError||this.state?.lastError||'',
+   message:this.running?'LIVE automation active — real funds at risk':
+     r.ready?'LIVE ready; owner must explicitly press Start Live':'LIVE locked: '+r.missing.join(', ')
+  };
+ }
+ day(){const today=new Date().toISOString().slice(0,10);if(this.state.day!==today){
+  this.state.day=today;this.state.dailyBuys=0;this.state.dailySpent='0';this.state.dailyLoss='0';this.save();}}
+ save(){if(!this.file)throw Error('Persistent live state unavailable');persist(this.file,this.state);}
+ async rpc(method,params){
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),12000);
+  try{const r=await this.fetchFn(this.env.SOLANA_RPC_URL,{method:'POST',signal:c.signal,
+    headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:crypto.randomUUID(),method,params})});
+   if(!r.ok)throw Error('Mainnet RPC unavailable');const x=await r.json();
+   if(x.error||!x.result)throw Error('Mainnet RPC error');return x.result;
+  }finally{clearTimeout(t);}
+ }
+ async solBalance(){
+  const result=await this.rpc('getBalance',[this.env.BOT_DEDICATED_WALLET_ADDRESS,{commitment:'confirmed'}]);
+  if(!Number.isSafeInteger(result.value))throw Error('Wallet balance unavailable');return BigInt(result.value);
+ }
+ async tokenBalance(mint){
+  const r=await this.rpc('getTokenAccountsByOwner',[this.env.BOT_DEDICATED_WALLET_ADDRESS,{mint},{encoding:'jsonParsed',commitment:'confirmed'}]);
+  let total=0n;for(const a of r.value||[])total+=atomicRaw(a.account?.data?.parsed?.info?.tokenAmount?.amount||'0');
+  return total;
+ }
+ async order(inputMint,outputMint,raw){
+  if(!Risk.mintOK(inputMint)||!Risk.mintOK(outputMint)||
+     (inputMint!==SOL&&outputMint!==SOL)||inputMint===outputMint||!amount(raw))
+    throw Error('Only validated SOL/token swaps are supported');
+  const taker=this.ensureSigner().publicKey.toBase58();
+  const u=new URL('https://api.jup.ag/swap/v2/order');
+  for(const [k,v] of Object.entries({inputMint,outputMint,amount:raw,taker,slippageBps:'100'}))u.searchParams.set(k,v);
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),12000);
+  try{const r=await this.fetchFn(u.toString(),{headers:{'x-api-key':this.env.JUPITER_API_KEY},signal:c.signal});
+    if(!r.ok)throw Error('Jupiter order unavailable '+r.status);const x=await r.json();
+    if(!x||typeof x.transaction!=='string'||x.transaction.length<80||
+       typeof x.requestId!=='string'||x.requestId.length<5||
+       String(x.inAmount)!==raw||!amount(String(x.outAmount))||
+       (x.errorCode||x.errorMessage))throw Error('Jupiter order invalid or amount changed');
+    if(x.feeBps!=null&&(!Number.isFinite(Number(x.feeBps))||Number(x.feeBps)>200))
+       throw Error('Swap fee over hard limit');
+    return x;
+  }finally{clearTimeout(t);}
+ }
+ async executeSigned(order){
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),20000);
+  try{const r=await this.fetchFn('https://api.jup.ag/swap/v2/execute',{
+   method:'POST',signal:c.signal,headers:{'x-api-key':this.env.JUPITER_API_KEY,'content-type':'application/json'},
+   body:JSON.stringify(order)});
+   if(!r.ok)throw Error('Jupiter execution response unavailable');const x=await r.json();
+   if(!x||!['Success','Failed'].includes(x.status))throw Error('Jupiter execution state uncertain');return x;
+  }finally{clearTimeout(t);}
+ }
+ apply(entry,pending){
+  const raw=atomicRaw(entry.tokenRaw);
+  if(pending.side==='BUY'){
+    if(this.state.positions.some(p=>p.mint===pending.mint))throw Error('Duplicate position');
+    this.state.positions.push({mint:pending.mint,rawRemaining:String(raw),
+      decimals:entry.tokenDecimals,entrySpot:pending.plan.entryReference,
+      stop:pending.plan.stop,tp1:pending.plan.tp1,tp2:pending.plan.tp2,tp3:pending.plan.tp3,
+      stage:0,costLamports:entry.effectiveSolLamports});
+    this.state.dailyBuys++;this.state.dailySpent=String(atomicRaw(this.state.dailySpent)+BigInt(pending.amount));
+  }else{
+    const p=this.state.positions.find(x=>x.mint===pending.mint);
+    if(!p)throw Error('Exit without tracked position');
+    const old=atomicRaw(p.rawRemaining),qty=raw>old?old:raw;
+    const cost=old?atomicRaw(p.costLamports)*qty/old:0n;
+    const received=BigInt(entry.effectiveSolLamports);
+    if(cost>received)this.state.dailyLoss=String(atomicRaw(this.state.dailyLoss)+cost-received);
+    p.rawRemaining=String(old-qty);p.costLamports=String(atomicRaw(p.costLamports)-cost);
+    p.stage=Math.max(p.stage,Number(pending.stage)||3);
+    if(atomicRaw(p.rawRemaining)===0n)this.state.positions=this.state.positions.filter(x=>x!==p);
+  }
+  this.state.pending=null;this.save();
+ }
+ async reconcile(){
+  if(!this.state?.pending)return {resolved:true,note:'No pending transaction'};
+  const pending=this.state.pending;
+  if(!pending.signature)return {resolved:false,note:'Intent has no signed signature; requires manual review'};
+  let entry=this.journal.read().transactions.find(t=>t.signature===pending.signature);
+  if(!entry){
+   try{const x=await this.journal.recordFinalized({signature:pending.signature,
+      wallet:this.env.BOT_DEDICATED_WALLET_ADDRESS,mint:pending.mint,side:pending.side,intentId:pending.id});
+     entry=x.entry;
+   }catch(e){return {resolved:false,note:'Pending signature not yet proven finalized; no retry or fresh trade'};}
+  }
+  this.apply(entry,pending);return {resolved:true,note:'Finalized transaction reconciled'};
+ }
+ async swap({mint,side,raw,plan=null,stage=3}){
+  if(this.state.pending)throw Error('Unresolved intent blocks trades');
+  const wallet=this.env.BOT_DEDICATED_WALLET_ADDRESS;
+  const input=side==='BUY'?SOL:mint,output=side==='BUY'?mint:SOL;
+  this.state.pending={id:'live-'+crypto.randomUUID(),wallet,mint,side,amount:String(raw),
+   plan,stage,signature:null,createdAt:new Date().toISOString()};this.save();
+  try{
+   const order=await this.order(input,output,String(raw));
+   const {VersionedTransaction}=require('@solana/web3.js');
+   const tx=VersionedTransaction.deserialize(Buffer.from(order.transaction,'base64'));
+   const signer=this.ensureSigner();
+   if(!tx.message.staticAccountKeys[0]?.equals(signer.publicKey))throw Error('Unexpected fee payer');
+   tx.sign([signer]);
+   const signature=b58(tx.signatures[0]);
+   if(!signature||signature.length<80)throw Error('Signature missing');
+   this.state.pending.signature=signature;
+   this.state.pending.requestId=order.requestId;this.save();
+   const result=await this.executeSigned({signedTransaction:Buffer.from(tx.serialize()).toString('base64'),requestId:order.requestId});
+   if(result.signature!==signature||result.status!=='Success')throw Error('Execution not confirmed; reconcile before resuming');
+   for(let i=0;i<12;i++){
+     const settled=await this.reconcile();if(settled.resolved)return settled;
+     await new Promise(r=>setTimeout(r,5000));
+   }
+   throw Error('Finalized on-chain receipt unavailable; pending locked');
+  }catch(e){
+   this.running=false;this.lastError=String(e.message||e).slice(0,180);
+   this.state.lastError=this.lastError;this.save();this.log('[Crimson LIVE HALT] '+this.lastError);
+   throw e;
+  }
+ }
+ async tick(){
+  if(!this.running||this.busy)return;
+  this.busy=true;this.lastTickAt=new Date().toISOString();
+  try{
+   this.day();if(this.state.pending)throw Error('Pending intent blocks further trades');
+   // Exits before entries. Sell no more than verified on-chain token balance.
+   for(const p of [...this.state.positions]){
+    const pool=await this.feeds.pool(p.mint);
+    const spot=Number(pool?.priceUsd);
+    if(!Number.isFinite(spot)||spot<=0)throw Error('Tracked token price unavailable; automatic exits paused');
+    const m=Risk.market(pool),exit=Risk.chooseExit(p,spot,m,{verified:false});
+    if(!exit)continue;
+    const onchain=await this.tokenBalance(p.mint);
+    const available=onchain<atomicRaw(p.rawRemaining)?onchain:atomicRaw(p.rawRemaining);
+    const qty=exit.fraction===1?available:available*BigInt(Math.round(exit.fraction*10000))/10000n;
+    if(qty<=0n)continue;
+    await this.swap({mint:p.mint,side:'SELL',raw:String(qty),stage:exit.type==='TP1'?1:exit.type==='TP2'?2:3});
+    return;
+   }
+   if(this.state.positions.length>=Number(this.env.BOT_MAX_OPEN_LIVE)||
+      this.state.dailyBuys>=Number(this.env.BOT_MAX_DAILY_LIVE_BUYS)||
+      atomicRaw(this.state.dailyLoss)>=atomicSol(Number(this.env.BOT_MAX_DAILY_LOSS_SOL)))return;
+   const snapshot=this.scanner?.status();
+   if(!snapshot||snapshot.lastError||Date.now()-Date.parse(snapshot.lastScanAt)>210000)return;
+   const candidate=(snapshot?.candidates||[]).find(c=>c.securityPass&&c.candleConfirmed&&
+      c.entryPlan&&Date.now()-Date.parse(c.updatedAt)<210000&&
+      !this.state.positions.some(p=>p.mint===c.mint));
+   if(!candidate)return;
+   const limit=atomicSol(Number(this.env.BOT_MAX_TRADE_SOL));
+   if(atomicRaw(this.state.dailySpent)+limit>atomicSol(Number(this.env.BOT_MAX_DAILY_SPEND_SOL)))return;
+   const balance=await this.solBalance();
+   if(balance-limit<atomicSol(.04))return; // Reserve SOL for fees, rent, and exits.
+   await this.swap({mint:candidate.mint,side:'BUY',raw:String(limit),plan:candidate.entryPlan,stage:0});
+  }catch(e){
+   this.running=false;this.lastError=String(e.message||e).slice(0,180);
+   this.log('[Crimson LIVE HALTED] '+this.lastError);
+  }finally{this.busy=false;}
+ }
+ start(){
+  if(this.running)return this.status();
+  const r=this.requirements();if(!r.ready)throw Error('Cannot start live: '+r.missing.join(', '));
+  this.ensureSigner(); // Verify secret and address before any signing.
+  this.running=true;this.lastError='';this.timer=setInterval(()=>void this.tick(),180000);
+  void this.tick();return this.status();
+ }
+ stop(){this.running=false;if(this.timer)clearInterval(this.timer);this.timer=null;return this.status();}
+}
+module.exports={LiveController,loadState,b58,persist};
