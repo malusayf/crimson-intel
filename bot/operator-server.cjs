@@ -1,0 +1,175 @@
+"use strict";
+/* Crimson PRIVATE operator gateway v0.1.
+ * Phantom proves the ONLY authorized owner via Ed25519 message signature.
+ * No wallet keys are requested or handled here. Live executor is intentionally
+ * not wired: Start Live fails CLOSED until an independently audited service is
+ * deployed and explicitly configured. Never expose raw localhost HTTP publicly.
+ */
+const http=require("node:http"),crypto=require("node:crypto");
+const {URL}=require("node:url");
+const B58="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const origin=(process.env.BOT_FRONTEND_ORIGIN||"https://malusayf.github.io").replace(/\/$/,"");
+const owner=(process.env.BOT_OWNER_PUBLIC_KEY||"").trim();
+const host=process.env.BOT_API_BIND||"127.0.0.1";
+const port=Number(process.env.BOT_API_PORT||8788);
+const managedAddress=process.env.BOT_DEDICATED_WALLET_ADDRESS||"";
+if(!/^https:\/\//.test(origin)||!Number.isInteger(port)||port<1024||port>65535)
+ throw Error("Configure valid BOT_FRONTEND_ORIGIN and BOT_API_PORT");
+if(host!=="127.0.0.1"&&host!=="::1"&&process.env.BOT_BEHIND_TLS_PROXY!=="true")
+ throw Error("Non-local binding requires HTTPS reverse-proxy configuration");
+function fromBase58(s){
+ if(typeof s!=="string"||s.length<32||s.length>44)throw Error("Invalid key");
+ let v=0n;
+ for(const c of s){const i=B58.indexOf(c);if(i<0)throw Error("Invalid key");v=v*58n+BigInt(i);}
+ const bytes=[];
+ while(v>0n){bytes.unshift(Number(v%256n));v/=256n;}
+ for(const c of s){if(c==="1")bytes.unshift(0);else break;}
+ const out=Buffer.from(bytes);
+ if(out.length!==32)throw Error("Incorrect key size");
+ return out;
+}
+function bytesB64(s){
+ if(typeof s!=="string"||s.length>200||!/^[A-Za-z0-9+/]+={0,2}$/.test(s))throw Error("Malformed signature");
+ const b=Buffer.from(s,"base64");
+ if(b.length!==64||b.toString("base64")!==s)throw Error("Signature must contain 64 bytes");
+ return b;
+}
+if(owner)fromBase58(owner);
+if(managedAddress)fromBase58(managedAddress);
+const challenges=new Map(),sessions=new Map(),attempts=new Map();
+const MAX_BODY=8192;
+function setSecurityHeaders(res){
+ res.setHeader("cache-control","no-store");
+ res.setHeader("x-content-type-options","nosniff");
+ res.setHeader("referrer-policy","no-referrer");
+ res.setHeader("content-security-policy","default-src 'none'");
+}
+function send(res,status,object){
+ setSecurityHeaders(res);
+ res.writeHead(status,{"content-type":"application/json; charset=utf-8"});
+ res.end(JSON.stringify(object));
+}
+function allowOrigin(req,res){
+ const got=req.headers.origin;
+ if(got!==origin)return false;
+ res.setHeader("access-control-allow-origin",origin);
+ res.setHeader("access-control-allow-methods","GET, POST, OPTIONS");
+ res.setHeader("access-control-allow-headers","Authorization, Content-Type");
+ res.setHeader("vary","Origin");
+ return true;
+}
+function rateLimit(req,category="generic"){
+ const key=(req.socket.remoteAddress||"unknown")+":"+category;
+ const now=Date.now(),r=attempts.get(key)||{since:now,count:0};
+ if(now-r.since>60000){r.since=now;r.count=0;}
+ r.count++;attempts.set(key,r);
+ if(attempts.size>1000)for(const [k,v] of attempts)if(now-v.since>60000)attempts.delete(k);
+ return r.count<=(category==="auth"?10:75);
+}
+async function json(req){
+ const parts=[];let size=0;
+ for await(const part of req){
+   size+=part.length;if(size>MAX_BODY)throw Error("Request too large");
+   parts.push(part);
+ }
+ const text=Buffer.concat(parts).toString("utf8");
+ const obj=JSON.parse(text||"{}");
+ if(!obj||typeof obj!=="object"||Array.isArray(obj))throw Error("Expected JSON object");
+ return obj;
+}
+function prune(){
+ const now=Date.now();
+ for(const [k,v] of challenges)if(v.expires<now)challenges.delete(k);
+ for(const [k,v] of sessions)if(v.expires<now)sessions.delete(k);
+}
+function auth(req){
+ const header=req.headers.authorization||"";
+ const token=header.startsWith("Bearer ")?header.slice(7):"";
+ const data=sessions.get(token);
+ if(!data||data.expires<Date.now())return false;
+ return data.address===owner;
+}
+function capability(){
+ return {
+  online:true,network:"solana-mainnet",walletConnection:"Phantom owner authentication",
+  privateBotWallet:managedAddress||null,
+  walletReady:false,liveExecutorReady:false,liveTrading:false,
+  state:"NOT_CONFIGURED",
+  message:"Owner authentication is available, but no audited live signer/execution worker is installed. START LIVE is disabled.",
+  limitations:["This service cannot directly sign using a connected Phantom extension",
+   "Fund a separate, limited-balance signing wallet only after secure execution is verified",
+   "Never share Phantom seed phrase or import it into this server"]
+ };
+}
+const server=http.createServer(async(req,res)=>{
+ try{
+  const url=new URL(req.url||"/","http://localhost");
+  if(url.pathname==="/health"&&req.method==="GET"){
+    return send(res,200,{online:true,mode:"CONTROL_PLANE_ONLY",liveTrading:false});
+  }
+  if(!allowOrigin(req,res))return send(res,403,{error:"Origin not allowed"});
+  if(req.method==="OPTIONS"){res.writeHead(204);res.end();return;}
+  if(!rateLimit(req,req.url.startsWith("/auth")?"auth":"generic"))
+    return send(res,429,{error:"Rate limit reached"});
+  prune();
+  if(url.pathname==="/auth/challenge"&&req.method==="POST"){
+    if(!owner)return send(res,503,{error:"Owner public key has not been configured"});
+    const body=await json(req);
+    if(body.address!==owner)return send(res,403,{error:"Not the authorized operator"});
+    if(challenges.size>64)return send(res,429,{error:"Too many outstanding challenges"});
+    const nonce=crypto.randomBytes(24).toString("hex"),now=Date.now(),expires=now+120000;
+    const message=[
+      "Crimson AutoTrader operator sign-in",
+      "Site: "+origin,
+      "Wallet: "+owner,
+      "Nonce: "+nonce,
+      "Issued: "+new Date(now).toISOString(),
+      "Expires: "+new Date(expires).toISOString(),
+      "This signature only proves wallet ownership; it does NOT authorize spending or grant token allowances."
+    ].join("\n");
+    challenges.set(owner,{message,expires});
+    return send(res,200,{message,expiresAt:new Date(expires).toISOString()});
+  }
+  if(url.pathname==="/auth/verify"&&req.method==="POST"){
+    if(!owner)return send(res,503,{error:"Owner public key not configured"});
+    const body=await json(req),pending=challenges.get(owner);
+    challenges.delete(owner); // One-time nonce, even on a failed attempt.
+    if(!pending||pending.expires<Date.now()||
+       body.address!==owner||body.message!==pending.message)
+       return send(res,401,{error:"Expired or invalid challenge"});
+    const raw=fromBase58(owner);
+    const spki=Buffer.concat([Buffer.from("302a300506032b6570032100","hex"),raw]);
+    const key=crypto.createPublicKey({key:spki,format:"der",type:"spki"});
+    const signature=bytesB64(body.signature);
+    if(!crypto.verify(null,Buffer.from(pending.message,"utf8"),key,signature))
+      return send(res,401,{error:"Signature verification failed"});
+    const token=crypto.randomBytes(32).toString("base64url");
+    sessions.set(token,{address:owner,expires:Date.now()+4*60*60*1000});
+    return send(res,200,{token,expiresInSeconds:14400,...capability()});
+  }
+  if(!auth(req))return send(res,401,{error:"Owner authentication required"});
+  if(url.pathname==="/status"&&req.method==="GET")return send(res,200,capability());
+  if(url.pathname==="/start"&&req.method==="POST"){
+    // Critical: Never turn a frontend click into unaudited transactions.
+    return send(res,409,{error:"Live executor has not been securely configured or tested. No funds moved.",...capability()});
+  }
+  if(url.pathname==="/stop"&&req.method==="POST")
+    return send(res,200,{stopped:true,liveTrading:false,message:"No live executor is running."});
+  if(url.pathname==="/emergency-stop"&&req.method==="POST")
+    return send(res,200,{stopped:true,liveTrading:false,message:"No live executor is running."});
+  if(url.pathname==="/auth/logout"&&req.method==="POST"){
+    const token=(req.headers.authorization||"").slice(7);sessions.delete(token);
+    return send(res,200,{signedOut:true});
+  }
+  return send(res,404,{error:"Unknown endpoint"});
+ }catch(e){
+  return send(res,400,{error:String(e.message||"Request failed").slice(0,160)});
+ }
+});
+if(require.main===module){
+ server.listen(port,host,()=>{
+  process.stdout.write("[Crimson operator] Listening on "+host+":"+port+
+   "; LIVE EXECUTION DISABLED; permitted origin "+origin+"\n");
+ });
+}
+module.exports={server,fromBase58,capability};
