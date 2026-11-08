@@ -223,6 +223,15 @@ const server=http.createServer(async(req,res)=>{
       return;
     }catch(e){return send(res,503,{error:"Verified live trade CSV unavailable"});}
   }
+  if(url.pathname==="/wallet/bot-sol-balance"&&req.method==="GET"){
+    const status=liveController.status();
+    if(!status.privateBotWallet)return send(res,503,{error:"Dedicated bot wallet has not been configured"});
+    try{const lamports=await liveController.solBalance();
+      return send(res,200,{wallet:status.privateBotWallet,network:"solana-mainnet",
+        lamports:String(lamports),sol:Number(lamports)/1000000000,
+        note:"Read-only confirmed bot-wallet balance; does not authorize spending"});
+    }catch(e){return send(res,503,{error:"Dedicated bot wallet balance unavailable"});}
+  }
   if(url.pathname==="/wallet/owner-sol-balance"&&req.method==="GET"){
     // READ ONLY. Fetch only configured, signed-in owner wallet. No arbitrary
     // address lookup, funding transfer, secret access or transaction execution.
