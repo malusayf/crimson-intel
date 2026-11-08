@@ -1,5 +1,20 @@
 # Crimson AutoTrader — private server & wallet deployment
 
+## Railway deployment status — 2026-11-08
+
+- **Operator API + autonomous PAPER scanner:** deployed on Railway as one persistent, one-replica service.
+- **Authenticated dashboard:** https://malusayf.github.io/crimson-intel/ → AutoTrader → connect Phantom and verify wallet ownership → see **Autonomous Paper Scanner** status, activity log and paper controls.
+- **Health endpoint:** https://crimson-operator-api-production.up.railway.app/health
+- **Paper journal:** persistent Railway volume mounted at /data. It survives restarts and deploys; it is **not backed up or audited** as an accounting ledger.
+- **Controls:** pause prevents new paper buys but allows paper exits; emergency kill blocks ALL modeled execution (including modeled exits); clear kill re-enables simulation only.
+- **Default paper risk configuration:** $1,000 simulated initial balance; 0.5% modeled planned loss per trade; at most 2 simultaneous simulated positions; 3% daily paper drawdown cutoff for new entries; 5 simulated new entries/day; cloud cycles roughly every 25 seconds, scans roughly every 3 minutes.
+- **State at initial deployment:** 0 simulated open positions. No real funds touched.
+- **Not deployed:** a live trading worker, real wallet signer, real order routing, transaction confirmation, custody recovery, or any mechanism to spend from Phantom.
+
+The older terminal-oriented instructions below are OPTIONAL for local development. **Do not run a second worker on the Railway volume from another machine.** The single cloud worker owns its journal.
+
+
+
 **Current release: owner-authenticated control gateway and quote previews only. No real on-chain buy/sell executor is installed.** The Start Live API deliberately returns HTTP 409. No funds have been moved or wallet keys created in GitHub.
 
 ## Service shape
@@ -16,7 +31,7 @@ Jupiter Swap V2 /order (no taker, NO signing)
 Dedicated bot wallet (local encrypted provisioner, NOT funded)
 ```
 
-**Railway suggested in ChatGPT:** Connect Railway to let deployment tools operate on your account. Until that connection is confirmed, nothing has been deployed there.
+**Railway suggested in ChatGPT:** Connect Railway to let deployment tools operate on your account. The private owner API and PAPER scanner are now deployed; live trading remains unavailable.
 
 ## Prepare a private Railway service
 
