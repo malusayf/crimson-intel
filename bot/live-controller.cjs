@@ -11,7 +11,6 @@ const SOL='So11111111111111111111111111111111111111112';
 const ABC='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 function b58(bytes){let n=0n;for(const b of bytes)n=n*256n+BigInt(b);let s='';while(n>0n){s=ABC[Number(n%58n)]+s;n/=58n;}for(const b of bytes){if(b!==0)break;s='1'+s;}return s;}
 function amount(x){return typeof x==='string'&&/^[1-9][0-9]*$/.test(x)&&BigInt(x)<=(2n**64n-1n);}
-function positiveNumber(x){const n=Number(x);return Number.isFinite(n)&&n>0?n:NaN;}
 function atomicSol(n){if(!(n>0&&Number.isSafeInteger(Math.round(n*1e9))))throw Error('Invalid SOL amount');return BigInt(Math.round(n*1e9));}
 function atomicRaw(x){if(!/^(0|[1-9]\d*)$/.test(String(x)))throw Error('Invalid integer amount');return BigInt(x);}
 function persist(file,obj){
@@ -63,7 +62,7 @@ class LiveController{
    maxLoss>0&&maxLoss<=.03&&Number.isInteger(maxOpen)&&maxOpen>=1&&maxOpen<=2&&
    Number.isInteger(maxBuys)&&maxBuys>=1&&maxBuys<=4))missing.push('Conservative live risk limits');
   if(this.file&&!this.state){try{this.state=loadState(this.file);}catch(e){missing.push('Persistent state integrity');}}
-  if(this.state?.pending&&!this.running)missing.push('Unresolved on-chain trade intent');
+  if(this.state?.pending)missing.push('Unresolved on-chain trade intent');
   return {ready:missing.length===0,missing,wallet:Risk.mintOK(expected)?expected:null,
    signerConfigured:!!seed,riskControlsReady:Number.isFinite(maxTrade)&&Number.isFinite(maxLoss),
    recoveryVerified:e.BOT_RECOVERY_VERIFIED==='true',onchainConfirmationReady:/^https:\/\//.test(e.SOLANA_RPC_URL||'')};
@@ -88,6 +87,7 @@ class LiveController{
    liveTrading:this.running,privateBotWallet:r.wallet,missing:r.missing,
    pendingIntent:!!this.state?.pending,positions:this.state?.positions?.length||0,
    dailyBuys:this.state?.dailyBuys||0,lastTickAt:this.lastTickAt,
+   backgroundWorker:true,autoResumeOnRestart:false,
    lastError:this.lastError||this.state?.lastError||'',
    message:this.running?'LIVE automation active — real funds at risk':
      r.ready?'LIVE ready; owner must explicitly press Start Live':'LIVE locked: '+r.missing.join(', ')
@@ -96,6 +96,47 @@ class LiveController{
  day(){const today=new Date().toISOString().slice(0,10);if(this.state.day!==today){
   this.state.day=today;this.state.dailyBuys=0;this.state.dailySpent='0';this.state.dailyLoss='0';this.save();}}
  save(){if(!this.file)throw Error('Persistent live state unavailable');persist(this.file,this.state);}
+  async portfolio(){
+   const r=this.requirements();
+   const state=this.state||{positions:[],pending:null,day:'',dailyBuys:0,dailySpent:'0',dailyLoss:'0'};
+   const view={
+     mode:'LIVE_ONLY',wallet:r.wallet,liveTrading:this.running,
+     timestamp:new Date().toISOString(),
+     pending:state.pending?{id:state.pending.id,side:state.pending.side,
+       mint:state.pending.mint,signature:state.pending.signature||null,
+       createdAt:state.pending.createdAt,reviewRequired:true}:null,
+     counters:{day:state.day,buys:state.dailyBuys,
+       spentSol:Number(atomicRaw(state.dailySpent||'0'))/1e9,
+       realizedLossSol:Number(atomicRaw(state.dailyLoss||'0'))/1e9,
+       buyLimit:Number(this.env.BOT_MAX_DAILY_LIVE_BUYS)||0,
+       spendingLimitSol:Number(this.env.BOT_MAX_DAILY_SPEND_SOL)||0,
+       lossLimitSol:Number(this.env.BOT_MAX_DAILY_LOSS_SOL)||0},
+     positions:[]
+   };
+   for(const p of state.positions.slice(0,2)){
+     const position={mint:p.mint,rawRemaining:p.rawRemaining,
+       decimals:p.decimals,quantity:((BigInt(p.rawRemaining)*100000000n)/(10n**BigInt(p.decimals))).toString(),
+       quantityScale:100000000,entryObservedUsd:p.entrySpot,stopUsd:p.stop,
+       tp1Usd:p.tp1,tp2Usd:p.tp2,tp3Usd:p.tp3,stage:p.stage,
+       effectiveCostSol:Number(atomicRaw(p.costLamports||'0'))/1e9,
+       currentObservedUsd:null,onchainRaw:null,observationAt:null,warning:null};
+     try{
+       const pool=await this.feeds.pool(p.mint);
+       const price=Number(pool?.priceUsd);
+       if(Number.isFinite(price)&&price>0){position.currentObservedUsd=price;
+        position.observationAt=new Date().toISOString();}
+       else position.warning='DEX price not available; no executable quote';
+     }catch(e){position.warning='DEX spot observation unavailable';}
+     if(r.wallet&&/^https:\/\//.test(this.env.SOLANA_RPC_URL||'')){
+       try{position.onchainRaw=String(await this.tokenBalance(p.mint));
+         if(BigInt(position.onchainRaw)<BigInt(p.rawRemaining))
+           position.warning='On-chain token quantity below recorded position; investigate before trading';
+       }catch(e){position.warning='On-chain token balance unavailable';}
+     }
+     view.positions.push(position);
+   }
+   return view;
+  }
  async rpc(method,params){
   const c=new AbortController(),t=setTimeout(()=>c.abort(),12000);
   try{const r=await this.fetchFn(this.env.SOLANA_RPC_URL,{method:'POST',signal:c.signal,
@@ -189,7 +230,11 @@ class LiveController{
    const signer=this.ensureSigner();
    if(!tx.message.staticAccountKeys[0]?.equals(signer.publicKey))throw Error('Unexpected fee payer');
    tx.sign([signer]);
-   const signature=b58(tx.signatures[0]);
+   const signerIndex=tx.message.staticAccountKeys
+     .slice(0,tx.message.header.numRequiredSignatures)
+     .findIndex(key=>key.equals(signer.publicKey));
+   if(signerIndex<0)throw Error('Dedicated wallet is not a required transaction signer');
+   const signature=b58(tx.signatures[signerIndex]);
    if(!signature||signature.length<80)throw Error('Signature missing');
    this.state.pending.signature=signature;
    this.state.pending.requestId=order.requestId;this.save();
@@ -244,6 +289,7 @@ class LiveController{
    await this.swap({mint:candidate.mint,side:'BUY',raw:String(limit),plan:candidate.entryPlan,stage:0});
   }catch(e){
    this.running=false;this.lastError=String(e.message||e).slice(0,180);
+   if(this.timer){clearInterval(this.timer);this.timer=null;}
    this.log('[Crimson LIVE HALTED] '+this.lastError);
   }finally{this.busy=false;}
  }
