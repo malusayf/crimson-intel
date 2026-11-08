@@ -1,88 +1,48 @@
-# Crimson AutoTrader — private server & wallet deployment
+# Crimson AutoTrader — Railway live-only service
 
-## Railway deployment status — 2026-11-08
+## Current actual status (2026-11-08)
 
-- **Operator API + autonomous PAPER scanner:** deployed on Railway as one persistent, one-replica service.
-- **Authenticated dashboard:** https://malusayf.github.io/crimson-intel/ → AutoTrader → connect Phantom and verify wallet ownership → see **Autonomous Paper Scanner** status, activity log and paper controls.
-- **Health endpoint:** https://crimson-operator-api-production.up.railway.app/health
-- **Paper journal:** persistent Railway volume mounted at /data. It survives restarts and deploys; it is **not backed up or audited** as an accounting ledger.
-- **Controls:** pause prevents new paper buys but allows paper exits; emergency kill blocks ALL modeled execution (including modeled exits); clear kill re-enables simulation only.
-- **Default paper risk configuration:** $1,000 simulated initial balance; 0.5% modeled planned loss per trade; at most 2 simultaneous simulated positions; 3% daily paper drawdown cutoff for new entries; 5 simulated new entries/day; cloud cycles roughly every 25 seconds, scans roughly every 3 minutes.
-- **State at initial deployment:** 0 simulated open positions. No real funds touched.
-- **Not deployed:** a live trading worker, real wallet signer, real order routing, transaction confirmation, custody recovery, or any mechanism to spend from Phantom.
+- **Railway private operator API:** Deployed at `https://crimson-operator-api-production.up.railway.app`.
+- **Phantom authentication:** Owner-only Ed25519 signed message with one-time challenge.
+- **Existing Phantom SOL:** Read-only balance view and allocation preview; no automatic spending permission granted.
+- **Journal:** Persistent Railway volume at `/data`; `live-trades-v1.json` records **only finalized dedicated-bot-wallet transactions** from a future trusted executor.
+- **No paper scanner:** The former paper process and paper API were stopped; its previous `paper.json` remains archived separately in the persistent volume and is not imported into live results.
+- **Real-money execution:** **NOT BUILT OR ENABLED.** `/start` returns 409 until signer, Jupiter execution, reconciler and verified risk controls are complete.
+- **Funds moved by Crimson:** None.
 
-The older terminal-oriented instructions below are OPTIONAL for local development. **Do not run a second worker on the Railway volume from another machine.** The single cloud worker owns its journal.
+The public Github Pages site loads `crimson-live-console.js` (no paper controls).
 
+## Private service configuration
 
+Railway service source: `malusayf/crimson-intel`, root directory `/bot`, start `node operator-server.cjs`. Healthcheck `GET /health`. One replica and a 256 MB persistent volume mounted at `/data`. TLS is terminated by Railway.
 
-**Current release: owner-authenticated control gateway and quote previews only. No real on-chain buy/sell executor is installed.** The Start Live API deliberately returns HTTP 409. No funds have been moved or wallet keys created in GitHub.
+Environment variable **names** (never publish their secret values):
 
-## Service shape
-
-```
-Phantom browser wallet (owner login & funding only)
-      ↓ Ed25519 signed challenge
-GitHub Pages → private HTTPS API (Railway)
-      ↓ authenticated quote-only calls
-Jupiter Swap V2 /order (no taker, NO signing)
-      |
-      [UNIMPLEMENTED] separately audited live signer & swap executor
-      |
-Dedicated bot wallet (local encrypted provisioner, NOT funded)
+```text
+BOT_FRONTEND_ORIGIN=https://malusayf.github.io
+BOT_BEHIND_TLS_PROXY=true
+BOT_OWNER_PUBLIC_KEY=your-Phantom-public-address
+BOT_DATA_DIR=/data
+BOT_AUTORUN_PAPER=false
 ```
 
-**Railway suggested in ChatGPT:** Connect Railway to let deployment tools operate on your account. The private owner API and PAPER scanner are now deployed; live trading remains unavailable.
+Optional private `JUPITER_API_KEY` allows the existing authenticated **quote-only** endpoint. The key must be set directly in Railway, never in the website or chat.
 
-## Prepare a private Railway service
+Do not configure `BOT_DEDICATED_WALLET_ADDRESS` until a distinct dedicated wallet is created with a tested recovery method. A public address alone does not make the signer safe or executable.
 
-1. Connect Railway in ChatGPT; select your private project and GitHub repo `malusayf/crimson-intel` for deployment. Treat the existing GitHub Pages site separately.
-2. For the API service set **Root Directory** to `/bot`, using `bot/package.json`, `bot/railway.json`, and start command `node operator-server.cjs`. Railway should supply `PORT`, terminate HTTPS at its public domain, and run the service as an ordinary Node.js web process.
-3. Configure these **private service variables** in Railway's secret/environment settings:
-   - `BOT_OWNER_PUBLIC_KEY`: **only** your Phantom *public wallet address*; it is safe to paste into a private setting.
-   - `BOT_FRONTEND_ORIGIN=https://malusayf.github.io`: exact origin of your public UI.
-   - `BOT_BEHIND_TLS_PROXY=true`: only when deployed behind Railway's actual HTTPS proxy.
-   - `JUPITER_API_KEY`: your private Jupiter API key, entered directly into Railway (never chat or GitHub).
-4. Deploy the server, verify `GET /health` reports `liveTrading:false`, and use the HTTPS service origin in the AutoTrader → Phantom Owner Connection section.
-5. In your browser, connect Phantom and sign the specific operator-login message. A normal wallet connect does **not** authorize signing swaps or spending money.
-6. Check Backend: it should truthfully report `walletReady:false`, `liveExecutorReady:false`, `liveTrading:false`. **Start Live must stay disabled.**
+## When real trading is implemented
 
-This API's authorization sessions are kept in memory and expire after 4 hours. It is a developer scaffold, not a production-hardened treasury service; deployment behind HTTPS does not make it safe to fund a bot.
+The private worker must record each intended order before signing, obtain a fresh Jupiter order, validate route/fees/slippage/price impact and token identity, sign with the **dedicated** wallet only, submit to Jupiter, and independently finalize on Solana. The future executor must call `LiveTradeJournal.recordFinalized` for every successful buy or sell. Any uncertain transaction stays pending until reconciled and must not be retried as a fresh spend. Journal prices reflect finalized wallet-net SOL per token and explicitly include fees/rent adjustments. CSV exports remain restricted to the authenticated owner.
 
-## Create a **separate** bot wallet locally (not in GitHub)
+Before funding, require verified emergency controls, spending limits, a single-writer durable database, crash/restart/retry tests, detailed trade history, separate key recovery, and a tiny explicitly approved real-funded pilot. Phantom is used only as the owner and funding wallet, not as a secret source.
 
-Only on your own trusted MacBook, after cloning the repository and installing Node.js 20+:
+## Verification
 
 ```bash
-node bot/wallet-setup.cjs create
-node bot/wallet-setup.cjs verify
-node bot/wallet-setup.cjs show-address
+cd bot
+npm test
 ```
 
-`create` generates a new random Solana Ed25519 key, encrypts the 32-byte seed with password-derived AES-256-GCM, and writes the ciphertext and public address to ignored `bot/.data/` files. It asks for a strong passphrase with hidden input. It will not overwrite an existing keystore. **It never prints the seed phrase or private key.**
+This runs live-journal synthetic finalized-transaction tests, owner-authentication/HTTP security tests, and Jupiter quote-only tests. It does not validate real wallet custody, route execution, production risk management or market profitability.
 
-Keep an off-device backup of the **encrypted keystore and passphrase**. Losing either can permanently lock funds. Anyone who obtains both could steal the wallet. The current code does **not** import this wallet into a signer or execute real swaps. Do **not deposit funds yet**, because secure signing, key recovery and withdrawal functionality are not operational or audited.
-
-## Status of execution infrastructure
-
-| Feature | Status |
-|---|---|
-| Solana candidate research, TP/SL paper simulation, forward record | Implemented |
-| Phantom public address connect + signed owner-only challenge | Implemented, needs live test |
-| HTTPS-ready private operator server and health route | Implemented, not deployed |
-| Jupiter quote-only route | Implemented, provider key required |
-| Local encrypted dedicated-wallet creation + password verification | Implemented, requires user's device |
-| Private signing service with audited custody and key isolation | **Not implemented** |
-| Exact-mint, decimals, route checks and token sellability simulation | **Not implemented** |
-| Confirmed real swaps, retry/idempotency, chain reconciliation | **Not implemented** |
-| Durable production database, alerts, backups, risk engine and controls | **Not implemented** |
-| Real-money Start button | **Intentionally disabled** |
-
-## Before spending real funds
-
-- Use a dedicated wallet with a deliberately small balance and a recovery method tested separately.
-- Require a *verified* on-chain sell route and transaction simulation. Rug pulls, liquidity removal and token transfer rules can defeat a stop-loss.
-- Validate filled quantities, fees, wallet balances, approval scope, RPC confirmation and retries. Treat uncertain transactions as potentially executed until reconciled.
-- Restrict per-trade amounts, daily losses, total exposure, token risk, pool age, and chain fees. Never trade on stale/failed security feeds.
-- Only after independent code review, realistic forward testing, private deployment, secret management and an explicit launch authorization should live execution be considered.
-
-**Do not put Phantom seed phrases, private keys, keystore passwords, API keys, or recovery information into ChatGPT or a GitHub repository.**
+**No bot funding or real swaps are authorized by deploying this control plane.**
