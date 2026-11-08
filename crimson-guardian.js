@@ -11,7 +11,8 @@ const number=x=>x===null||x===undefined||x===""?NaN:Number(x);
 const p=x=>finite(x)&&x>0?"$"+Number(x).toPrecision(8):"—";
 const usd=x=>finite(x)?(x<0?"−":"")+"$"+Math.abs(x).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}):"—";
 const pct=x=>finite(x)?(x>0?"+":"")+x.toFixed(1)+"%":"—";
-const mintOK=x=>typeof x==="string"&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(x);
+const mintOK=x=>typeof x==="string"&&(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(x)||/^0x[a-fA-F0-9]{40}$/.test(x));
+const keyOK=k=>typeof k==="string"&&(mintOK(k)||/^(solana|robinhood):/.test(k)&&mintOK(k.split(":").slice(1).join(":")));
 const create=(tag,text,klass)=>{const e=document.createElement(tag);e.textContent=String(text);if(klass)e.className=klass;return e;};
 const style=document.createElement("style");
 style.textContent=[
@@ -96,7 +97,8 @@ if(!k)return "";
 if(data.userKey!==k){
 data.userKey=k;data.plans={};data.quote=null;
 try{const v=JSON.parse(localStorage.getItem(k)||"null");
-if(v&&typeof v==="object"&&v.plans&&typeof v.plans==="object")data.plans=Object.fromEntries(Object.entries(v.plans).filter(([mint,plan])=>mintOK(mint)&&plan?.plan&&Array.isArray(plan.sales)));
+if(v&&typeof v==="object"&&v.plans&&typeof v.plans==="object")data.plans=Object.fromEntries(Object.entries(v.plans).filter(([key,plan])=>keyOK(key)&&plan?.plan&&Array.isArray(plan.sales)).map(([key,plan])=>
+ [key.includes(":")?key:"solana:"+key,plan]));
 }catch(e){}
 }
 return k;
@@ -108,8 +110,13 @@ else localStorage.removeItem(k);}
 catch(e){$("cgStatus").textContent="Browser storage unavailable: data may not persist.";}
 }
 function currentMint(){return data.snapshot?.mint||data.planSnapshot?.mint||"";}
+function currentChain(){return data.snapshot?.pair?.chainId||data.planSnapshot?.chainId||"solana";}
+function currentId(){
+ const mint=currentMint();
+ return mintOK(mint)?currentChain()+":"+(currentChain()==="robinhood"?mint.toLowerCase():mint):"";
+}
 function lockedForCurrent(){
-recordKey();return data.plans[currentMint()]||null;
+ recordKey();return data.plans[currentId()]||null;
 }
 function availableQty(l){
 if(!l)return 0;
@@ -118,12 +125,13 @@ return Math.max(0,l.quantity-sold);
 }
 function livePlan(){
 const v=data.planSnapshot,p=v?.plan;
-if(!v||!p||v.mint!==currentMint()||!(v.amount>0&&v.entry>0&&v.qty>0))return null;
+if(!v||!p||v.mint!==currentMint()||v.chainId!==currentChain()||
+ !(v.amount>0&&v.entry>0&&v.qty>0))return null;
 if(![p.sl,p.tp1,p.tp2,p.tp3].every(x=>Number.isFinite(Number(x))&&x>0))return null;
 return v;
 }
 function alertStatus(message,level){
-const key=currentMint()+"|"+message;
+const key=currentId()+"|"+message;
 if(key===data.warningKey)return;
 data.warningKey=key;
 if(!$("cgAlerts").checked||document.hidden)return;
@@ -135,7 +143,8 @@ function render(){
 const current=data.snapshot,lk=lockedForCurrent(),activePlan=livePlan(),
  priceNow=number(current?.pair?.priceUsd),liquidity=number(current?.pair?.liquidity?.usd);
 const coin=currentMint(),sec=data.security||data.unified?.security;
-if(!coin){data.warningKey="";$("cgStatus").textContent="Track a coin to start Guardian.";return;}
+if(!coin){data.warningKey="";$("cgStatus").textContent="Track a Solana or Robinhood token to start Guardian.";
+ $("cgLock").disabled=true;return;}
 if(!recordKey()){
 $("cgStatus").textContent="Sign in first to unlock position storage.";
 $("cgLock").disabled=true;
@@ -154,7 +163,8 @@ const tradeSize=finite(exitSpot)?exitSpot:NaN;
 const theoreticalReturn=lk&&finite(priceNow)?qty*(priceNow-lk.entry):NaN;
 $("cgLocked").textContent=lk?p(lk.entry)+" / "+p(lk.plan.sl):"—";
 $("cgLockNote").textContent=lk?"Locked "+new Date(lk.createdAt).toLocaleString()+
- " · TP1 "+p(lk.plan.tp1)+" · TP2 "+p(lk.plan.tp2)+" · TP3 "+p(lk.plan.tp3):
+ " · TP1 "+p(lk.plan.tp1)+" · TP2 "+p(lk.plan.tp2)+" · TP3 "+p(lk.plan.tp3)+
+ " · "+(lk.planSource||"Recorded reference"):
  "Live calculated plans can change. Lock a valid plan to freeze the price levels.";
 $("cgRemain").textContent=finite(qty)?qty.toLocaleString("en-US",{maximumFractionDigits:6})+" tokens":"—";
 $("cgRemainingValue").textContent=lk?usd(exitSpot)+" theoretical spot value · "+
@@ -168,30 +178,35 @@ $("cgLiquidityRisk").textContent=finite(fraction)?
  "Position value / total pool USD liquidity "+fraction.toFixed(2)+"% · crude concentration flag, NOT swap impact.":
  "Live pool liquidity unavailable; quote needed for executable estimate.";
 let quoteText="No fresh manual sell-preview output recorded. Not a verified live quote.";
-if(data.quote&&data.quote.mint===coin&&Date.now()-data.quote.time<120000&&finite(exitSpot)){
+if(data.quote&&data.quote.key===currentId()&&Date.now()-data.quote.time<120000&&finite(exitSpot)){
  const impact=exitSpot>0?100*(exitSpot-data.quote.value)/exitSpot:NaN;
  quoteText="Manual preview net output "+usd(data.quote.value)+" · "+pct(-impact)+
  " vs theoretical spot output · recorded "+new Date(data.quote.time).toLocaleTimeString()+
  ". This quote is user-supplied, may expire and is NOT independently verified.";
 }
 $("cgQuoteSummary").textContent=quoteText;
-$("cgQuoteTime").value=data.quote?.mint===coin?new Date(data.quote.time).toLocaleString():"";
+$("cgQuoteTime").value=data.quote?.key===currentId()?new Date(data.quote.time).toLocaleString():"";
 $("cgSales").textContent=lk&&lk.sales.length?lk.sales.map((x,i)=>
  "#"+(i+1)+": "+x.qty.toPrecision(6)+" tokens @ "+p(x.price)+
  " · "+usd(x.qty*(x.price-lk.entry)-x.fee)+" realized").join(" | "):
  "No manual sales recorded. Buttons cannot perform actual swaps.";
 const messages=[];
-const oldest=data.liquidityHistory.find(x=>x.mint===coin&&Date.now()-x.time<=30*60000);
+const oldest=data.liquidityHistory.find(x=>x.key===currentId()&&Date.now()-x.time<=30*60000);
 const drop=oldest&&oldest.value>0&&finite(liquidity)?100*(oldest.value-liquidity)/oldest.value:NaN;
 const liqLimit=number($("cgLiqThreshold").value),priceLimit=number($("cgPriceThreshold").value);
 if(sec?.verified&&sec.reject)messages.push("ON-CHAIN SECURITY FLAG: investigate report immediately.");
+if(currentChain()==="robinhood"&&current?.pair?.priceType==="issuer-reference")
+ messages.push("ISSUER REFERENCE ONLY: NO DEX EXECUTABLE SELL QUOTE OR POOL LIQUIDITY. U.S. OFFERING RESTRICTIONS.");
+if(current?.pair?.dataStale)messages.push("STALE MARKET DATA. Do not rely on spot alerts or risk scores as live.");
+if(currentChain()==="robinhood"&&current?.pair?.priceType==="dex-spot"&&!sec?.verified)
+ messages.push("ROBINHOOD CONTRACT SECURITY NOT VERIFIED. Pool liquidity is not proof a token is safe.");
 if(lk&&finite(priceNow)&&priceNow<=lk.plan.sl)messages.push("PRICE AT/BELOW LOCKED SL. Exit may be impaired by slippage.");
 if(market?.dangerous||market?.dump)messages.push("HIGH MARKET DANGER / DUMP PRESSURE detected.");
 if(finite(drop)&&drop>=(finite(liqLimit)?liqLimit:15))messages.push("OBSERVED USD LIQUIDITY DOWN "+drop.toFixed(1)+"%; cause unknown.");
 if(lk&&finite(priceNow)&&priceNow<lk.entry*(1-(finite(priceLimit)?priceLimit:20)/100))
  messages.push("POSITION DOWN MORE THAN SET PRICE THRESHOLD.");
 if(finite(fraction)&&fraction>10)messages.push("POSITION >10% OF POOL USD LIQUIDITY; execution danger.");
-if(data.quote&&data.quote.mint===coin&&Date.now()-data.quote.time<120000&&finite(exitSpot)&&
+if(data.quote&&data.quote.key===currentId()&&Date.now()-data.quote.time<120000&&finite(exitSpot)&&
  exitSpot>0&&data.quote.value<exitSpot*.85)messages.push("MANUAL SELL PREVIEW >15% WORSE THAN SPOT ESTIMATE.");
 const high=messages.length>0;
 const headline=high?"EMERGENCY WATCH · "+messages[0]:
@@ -203,16 +218,18 @@ $("cgWarning").className="cg-alert "+(high?"urgent":lk?"watch":"calm");
 $("cgEvidence").textContent=messages.length?messages.join(" "):
  "No current emergency flag under configured checks. This does NOT prove safety.";
 $("cgStatus").textContent=(lk?"Plan frozen; market checks continue.":"No plan locked yet.")+
- " Last market update "+(current?new Date(current.updatedAt||Date.now()).toLocaleTimeString():"—");
+ " · "+(currentChain()==="robinhood"?"Robinhood Chain":"Solana")+
+ " · Last market update "+(current?new Date(current.updatedAt||Date.now()).toLocaleTimeString():"—");
 if(high)alertStatus(messages[0],"urgent");
 else data.warningKey="";
 }
 function lock(){
 const v=livePlan();if(!v||!recordKey())return;
-if(data.plans[v.mint])return;
+if(data.plans[currentId()])return;
 const entry=number(v.entry),amount=number(v.amount),qty=number(v.qty);
-data.plans[v.mint]={
- mint:v.mint,pairAddress:v.pairAddress,entry,invested:amount,quantity:qty,
+data.plans[currentId()]={
+ mint:v.mint,chainId:currentChain(),pairAddress:v.pairAddress,entry,invested:amount,quantity:qty,
+ planSource:v.plan.source||"Unverified reference",
  plan:{sl:Number(v.plan.sl),tp1:Number(v.plan.tp1),tp2:Number(v.plan.tp2),tp3:Number(v.plan.tp3)},
  createdAt:Date.now(),sales:[]
 };
@@ -231,12 +248,12 @@ persist();render();
 }
 function clearPlan(){const lk=lockedForCurrent();if(!lk)return;
 if(!window.confirm("Clear the locked plan and its manually recorded exits for this coin?"))return;
-delete data.plans[lk.mint];persist();render();
+delete data.plans[currentId()];persist();render();
 }
 function storeQuote(){
 const amount=number($("cgQuote").value),mint=currentMint();
 if(!mintOK(mint)||!(amount>0)){$("cgQuoteSummary").textContent="Enter a valid net sell-preview USD output.";return;}
-data.quote={mint,value:amount,time:Date.now()};render();
+data.quote={key:currentId(),value:amount,time:Date.now()};render();
 }
 $("cgLock").addEventListener("click",lock);
 $("cgRecordSale").addEventListener("click",recordSale);
@@ -260,7 +277,7 @@ window.addEventListener("crimson:market-snapshot",ev=>{
 const s=ev.detail;if(!mintOK(s?.mint))return;
 data.snapshot=s;const value=number(s?.pair?.liquidity?.usd);
 if(finite(value)&&value>0){
-data.liquidityHistory.push({mint:s.mint,value,time:Date.now()});
+data.liquidityHistory.push({key:currentId(),value,time:Date.now()});
 data.liquidityHistory=data.liquidityHistory.filter(x=>Date.now()-x.time<31*60000).slice(-150);
 }
 render();
@@ -272,7 +289,7 @@ render();
 });
 window.addEventListener("crimson:tracked-change",ev=>{
 data.snapshot=null;data.unified=null;data.security=null;data.quote=null;data.planSnapshot=null;
-if(mintOK(ev.detail?.mint))data.planSnapshot={mint:ev.detail.mint};
+if(mintOK(ev.detail?.mint))data.planSnapshot={mint:ev.detail.mint,chainId:ev.detail.chainId};
 render();
 });
 window.addEventListener("focus",render);
