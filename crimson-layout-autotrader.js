@@ -58,11 +58,10 @@
     nav.setAttribute("role","tablist");
     nav.setAttribute("aria-label","Crimson Intel sections");
     const definitions=[
-      {id:"overview",tab:"📊 Dashboard",title:"Market Dashboard",desc:"Price, Unified Intelligence, DEX chart and entry assessments."},
-      {id:"discover",tab:"🔎 Discover",title:"Find Coins",desc:"Automatic Solana discovery and screened Safety Scout candidates."},
+      {id:"overview",tab:"📊 Dashboard",title:"Solana + Robinhood Market Dashboard",desc:"One network-selected token tracker, unified market risks, price alerts and scenario P/L."},
+      {id:"discover",tab:"🔎 Discover",title:"Discover Both Networks",desc:"Solana Safety Scout plus Robinhood Chain DEX discovery, official issuer lookups and saved watches."},
       {id:"positions",tab:"🎯 Positions & Guardian",title:"Positions & Guardian",desc:"Investment calculator, TP1–TP3, stop-loss planning, locked positions, partial sales and security protection."},
       {id:"autotrader",tab:"🤖 AutoTrader",title:"Live AutoTrader & Verified Trade Journal",desc:"Owner-authenticated Phantom connection, live execution readiness, dedicated wallet funding and finalized buy/sell history."},
-      {id:"robinhood",tab:"🟢 Robinhood Chain",title:"Robinhood Chain Intel",desc:"Network 4663: read-only DEX pools, official stock tokens, issuer contract verification, market data and local watchlist."},
       {id:"portfolio",tab:"💼 Portfolio",title:"Portfolio & Performance",desc:"Multiple holdings, risk concentration, anomaly research and signal observations."},
       {id:"research",tab:"🧠 Research",title:"Project & Growth Research",desc:"Growth Scout, Project Intel and planned wallet intelligence."},
       {id:"alerts",tab:"🔔 Alerts",title:"Price Alerts",desc:"Your original price thresholds and browser notification controls."}
@@ -110,7 +109,7 @@
     move("positions",$("cgGuardian"));
     move("positions",trackedReport);
     move("autotrader",$("ciAutoTrader"));
-    move("robinhood",$("ciRobinhood"));
+    move("discover",$("ciRobinhood")); // Shared tracker is the only Positions/Guardian entry point.
     move("portfolio",$("ccCommandCenter"));
     move("research",$("ciGrowthScout"));
     move("research",$("crimsonProjectIntel"));
