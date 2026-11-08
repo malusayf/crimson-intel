@@ -61,6 +61,12 @@ async function main(){
  assert.equal(engine.state.positions.length,1);
  assert(Math.abs(engine.state.positions[0].qty-originalQty*.75)<1e-5,"TP1 sold 25% despite paused entries");
  assert.equal(engine.state.positions[0].stage,1);
+ // TP2 must sell another 25% of ORIGINAL quantity, not 75%.
+ feed.price=pos.tp2+.00001;
+ time+=30000;
+ await engine.cycle();
+ assert.equal(engine.state.positions[0].stage,2);
+ assert(Math.abs(engine.state.positions[0].qty-originalQty*.50)<1e-5,"TP2 leaves half of original position");
  feed.price=pos.tp3+.00001;
  kill=true;
  time+=30000;
@@ -70,9 +76,9 @@ async function main(){
  time+=30000;
  await engine.cycle();
  assert.equal(engine.state.positions.length,0,"TP3 closes remainder");
- assert.equal(engine.state.trades.filter(x=>x.side==="SELL").length,2);
+ assert.equal(engine.state.trades.filter(x=>x.side==="SELL").length,3);
  assert(engine.state.cash>0);
  assert.equal(engine.publicStatus().liveExecution,false,"no live mode implemented");
- console.log("PASS: market filters, rug fail-closed, closed candles, paper buy, TP1 partial, pause, kill, TP3 close, live disabled");
+ console.log("PASS: market filters, rug fail-closed, closed candles, paper buy, TP1 and TP2 partials, pause, kill, TP3 close, live disabled");
 }
 main().catch(e=>{console.error("FAIL:",e.stack);process.exitCode=1;});
