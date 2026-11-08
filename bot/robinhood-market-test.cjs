@@ -16,9 +16,9 @@ async function run(){
     currency:"USD",dailyTradingVolume:"10000",
     isTradingHalt:false,generatedAt:"2026-11-08T12:00:00Z"}]},
   dex:{data:[{attributes:{address:poolAddress,name:"Apple / WETH",base_token_price_usd:"401",
-    reserve_in_usd:"20000",volume_usd:{h24:"35000",m5:"100"},market_cap_usd:null,
-    transactions:{m5:{buys:4,sells:2},h24:{buys:20,sells:12}},
-    price_change_percentage:{h24:"2.5"}},
+    reserve_in_usd:"20000",volume_usd:{h24:"35000",h1:"1200",m5:"100"},market_cap_usd:null,
+    transactions:{m5:{buys:4,sells:2},h1:{buys:25,sells:10},h24:{buys:20,sells:12}},
+    price_change_percentage:{h1:"1.2",h24:"2.5"}},
    relationships:{base_token:{data:{id:"robinhood_"+contract.toLowerCase()}},
     quote_token:{data:{id:"robinhood_"+imposter.toLowerCase()}}}}],
    included:[{id:"robinhood_"+contract.toLowerCase(),
@@ -52,6 +52,10 @@ async function run(){
  assert.equal(pools.pools[0].issuerCheck,"issuer-listed");
  assert.equal(pools.pools[0].securityVerified,false,"Issuer match never proves safety");
  assert.equal(pools.pools[0].buys5m,4);
+ assert.equal(pools.pools[0].buys1h,25);
+ assert.equal(pools.pools[0].volume1hUsd,1200);
+ assert.equal(pools.pools[0].change1hPct,1.2);
+ assert.equal(pools.pools[0].securityVerified,false);
  assert.equal(pools.pools[0].liquidityUsd,20000);
  const detail=await client.pool(poolAddress);
  assert.equal(detail.pool.poolAddress,poolAddress);
