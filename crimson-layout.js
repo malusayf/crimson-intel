@@ -51,7 +51,7 @@
 
     const intro=document.createElement("div");intro.id="ciMissionIntro";
     intro.innerHTML='<h2>⚔ Crimson Mission Control</h2>'+
-      '<p>All your Crimson systems in one place. Track a token above, then switch sections for discovery, investments, protection, portfolio and alerts.</p>'+
+      '<p>All your Crimson systems in one place. Track a token above, then switch sections for discovery, investments and protection, portfolio and alerts.</p>'+
       '<div id="ciMissionStatus" aria-live="polite">Tracking idle · choose a Solana token above</div>';
 
     const nav=document.createElement("nav");nav.id="ciMissionNav";
@@ -60,8 +60,7 @@
     const definitions=[
       {id:"overview",tab:"📊 Dashboard",title:"Market Dashboard",desc:"Price, Unified Intelligence, DEX chart and entry assessments."},
       {id:"discover",tab:"🔎 Discover",title:"Find Coins",desc:"Automatic Solana discovery and screened Safety Scout candidates."},
-      {id:"positions",tab:"🎯 Positions",title:"Investment & Exit Planning",desc:"Original calculator, linked TP1–TP3 profit projections and stop-loss planning."},
-      {id:"guardian",tab:"🛡 Guardian",title:"Capital Protection",desc:"Locked plans, partial sales, exit checks, alerts and tracked token security."},
+      {id:"positions",tab:"🎯 Positions & Guardian",title:"Positions & Guardian",desc:"Investment calculator, TP1–TP3, stop-loss planning, locked positions, partial sales and security protection."},
       {id:"portfolio",tab:"💼 Portfolio",title:"Portfolio & Performance",desc:"Multiple holdings, risk concentration, anomaly research and signal observations."},
       {id:"research",tab:"🧠 Research",title:"Project & Growth Research",desc:"Growth Scout, Project Intel and planned wallet intelligence."},
       {id:"alerts",tab:"🔔 Alerts",title:"Price Alerts",desc:"Your original price thresholds and browser notification controls."}
@@ -90,8 +89,9 @@
 
     // Reparent, do not duplicate: script references and event handlers survive.
     const move=(id,node)=>{if(node&&views[id]&&!views[id].contains(node))views[id].append(node);};
-    // RugCheck report may be a child of Radar; move it BEFORE Radar.
-    move("guardian",$("csTrackedReport"));
+    // RugCheck report may be a child of Radar; extract it before moving Radar.
+    const trackedReport=$("csTrackedReport");
+    if(trackedReport?.parentElement=== $("crimsonMarketRadar")) trackedReport.remove();
     move("overview",marketPanel);
     move("overview",$("crimsonMarketRadar"));
     move("overview",chartPanel);
@@ -99,7 +99,14 @@
     move("discover",$("crimsonSafetyScout"));
     move("positions",investWrap);
     move("positions",$("ciPositionIntel"));
-    move("guardian",$("cgGuardian"));
+    // Position management and capital protection are one continuous workflow.
+    const guardianHeading=document.createElement("div");
+    guardianHeading.className="ci-navigation-card";
+    guardianHeading.innerHTML="<h3 style='margin:0 0 5px'>🛡 Guardian · Capital Protection</h3>"+
+      "<p style='margin:0'>Locked plans, partial profits, liquidity risk and independent token security.</p>";
+    views.positions.append(guardianHeading);
+    move("positions",$("cgGuardian"));
+    move("positions",trackedReport);
     move("portfolio",$("ccCommandCenter"));
     move("research",$("ciGrowthScout"));
     move("research",$("crimsonProjectIntel"));
@@ -163,6 +170,8 @@
 
     let initial="overview";
     try{initial=sessionStorage.getItem("ci-mission-tab")||"overview";}catch(e){}
+    // Migrate the former Guardian tab to the merged Positions & Guardian tab.
+    if(initial==="guardian")initial="positions";
     choose(views[initial]?initial:"overview");
 
     window.addEventListener("crimson:market-snapshot",ev=>{
