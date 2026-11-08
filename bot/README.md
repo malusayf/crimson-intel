@@ -18,3 +18,22 @@ The current automatic signal uses a cautious completed-candle pullback proxy. It
 
 Website: https://malusayf.github.io/crimson-intel/  
 Railway API: https://crimson-operator-api-production.up.railway.app
+
+## Robinhood Chain Intelligence (read-only, independent of AutoTrader)
+
+Crimson Intel now has a **Robinhood Chain (4663)** section next to the Solana and AutoTrader sections. It includes:
+- GeckoTerminal network-4663 DEX trending and new pools with observed price, liquidity, transaction buys/sells and 24-hour volume/change.
+- Canonical Robinhood Stock Token registry lookup by issuer ticker, name or full contract address.
+- Robinhood Stock Token underlying equity USD bid/ask, adjusted using the issuer's current shares-per-token multiplier; raw equity volume is not token DEX volume.
+- Public contract and DEX pool explorer links, visibly stale data when upstream APIs temporarily fail, and browser-local watchlist.
+
+Public read-only endpoints: GET /robinhood/pools?view=trending, GET /robinhood/pools?view=new, GET /robinhood/stocks?q=AAPL, GET /robinhood/stock-quote?symbol=AAPL and GET /robinhood/pool?address=<40-hex-EVM-address>. Every server-side upstream hostname is fixed, and no Robinhood API credentials, wallet secrets or trading authorization are involved. Public data is subject to caching and upstream availability. No holder count or safety audit is claimed where data is absent.
+
+Stock-token names are trusted **only when the issuer registry includes the exact contract address on Robinhood Chain id 4663**. A matching ticker or logo from a DEX is not official issuance. The backend does not grant token tradability or eligibility.
+
+**U.S. restriction:** Robinhood Stock Tokens are issued as debt securities providing exposure to an underlying asset, not underlying share ownership. Robinhood states these securities may not be offered or sold to U.S. persons; this feature is for research and observation only. It does NOT extend the Solana trading bot to EVM, Robinhood Chain or securities, or trade any Robinhood assets.
+
+Sources:
+- https://docs.robinhood.com/chain/stock-token-apis/
+- https://docs.robinhood.com/chain/stock-tokens/
+- https://api.geckoterminal.com/docs/index.html
