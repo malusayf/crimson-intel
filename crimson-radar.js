@@ -217,6 +217,8 @@
       if($("sellbar"))$("sellbar").style.width=a.enough?(100-a.buyShare)+"%":"0%";
     }
     $("cmLiveStatus").textContent="Tracking "+(activePair.baseToken?.symbol||"SOL token")+" · "+new Date().toLocaleTimeString()+" · selected DEX pool";
+    window.CRIMSON_LATEST_INTELLIGENCE = {mint:m, market:a, security:sec||null, pair:activePair, updatedAt:Date.now()};
+    window.dispatchEvent(new CustomEvent("crimson:unified-intelligence", {detail:window.CRIMSON_LATEST_INTELLIGENCE}));
     lastLiq.set(m,{liquidity:num(activePair?.liquidity?.usd),time:Date.now()});
   }
 
