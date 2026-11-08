@@ -9,13 +9,14 @@
   },
   "scripts": {
     "start": "node operator-server.cjs",
-    "test": "node live-journal-test.cjs && node operator-test.cjs && node quote-test.cjs",
+    "test": "node live-journal-test.cjs && node operator-test.cjs && node quote-test.cjs && node live-scanner-test.cjs",
     "test:journal": "node live-journal-test.cjs",
     "test:operator": "node operator-test.cjs",
     "test:quote": "node quote-test.cjs",
     "wallet:create": "node wallet-setup.cjs create",
     "wallet:verify": "node wallet-setup.cjs verify",
-    "wallet:address": "node wallet-setup.cjs show-address"
+    "wallet:address": "node wallet-setup.cjs show-address",
+    "test:scanner": "node live-scanner-test.cjs"
   },
   "license": "UNLICENSED"
 }
