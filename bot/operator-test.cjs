@@ -21,6 +21,17 @@ async function test(){
  assert.deepEqual(fromBase58(address),raw);
  assert.equal(capability().liveTrading,false);
  assert.equal(capability().liveExecutorReady,false);
+ const actualFetch=globalThis.fetch;
+ globalThis.fetch=async(url,opts)=>{
+   if(String(url).startsWith("https://api.mainnet-beta.solana.com")){
+     const reqBody=JSON.parse(opts.body);
+     assert.equal(reqBody.method,"getBalance");
+     assert.equal(reqBody.params[0],address);
+     return {ok:true,json:async()=>({jsonrpc:"2.0",id:"crimson-owner-sol",
+       result:{context:{slot:123456},value:2250000000}})};
+   }
+   return actualFetch(url,opts);
+ };
  const port=await new Promise((resolve,reject)=>{
    server.once("error",reject);server.listen(0,"127.0.0.1",()=>resolve(server.address().port));
  });
@@ -56,10 +67,18 @@ async function test(){
    const verified=await req("/status","GET",null,ownerSession);
    assert.equal(verified.status,200);
    assert.equal(verified.data.walletReady,false);
+   const publicBalance=await req("/wallet/owner-sol-balance");
+   assert.equal(publicBalance.status,401,"unsigned account cannot view balance");
+   const solBalance=await req("/wallet/owner-sol-balance","GET",null,ownerSession);
+   assert.equal(solBalance.status,200);
+   assert.equal(solBalance.data.wallet,address);
+   assert.equal(solBalance.data.lamports,"2250000000");
+   assert.equal(solBalance.data.sol,2.25);
+   assert.equal(solBalance.data.network,"solana-mainnet");
    const wrongOrigin=await fetch("http://127.0.0.1:"+port+"/status",{
      headers:{Origin:"https://attacker.example"}});
    assert.equal(wrongOrigin.status,403);
-   console.log("PASS operator: owner-only challenge, Ed25519 verification, nonce replay prevention, no unauthorized start, live disabled, hostile origin rejected");
- }finally{await new Promise(resolve=>server.close(resolve));}
+   console.log("PASS operator: owner Ed25519 login, nonce replay refusal, SOL balance owner-only, start blocked, hostile origin rejected");
+ }finally{globalThis.fetch=actualFetch;await new Promise(resolve=>server.close(resolve));}
 }
 test().catch(e=>{console.error(e);process.exitCode=1});
