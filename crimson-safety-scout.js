@@ -178,7 +178,11 @@ target.append(table);
 }else target.append(make("p","No verified 5m candle-based Entry/SL/TP plan available.","cs-small"));
 const actions=document.createElement("div");actions.className="cs-buttons";
 const btn=make("button","Deep analyze");btn.type="button";
-btn.addEventListener("click",()=>{$("mint").value=c.mint;$("track").click();$("mint").scrollIntoView({behavior:"smooth",block:"center"});});
+btn.addEventListener("click",()=>{
+ if(!window.CRIMSON_TRACK_ASSET?.("solana",c.mint)){
+  $("ciChainSelect").value="solana";$("mint").value=c.mint;$("track").click();
+ }
+});
 actions.append(btn,link("RugCheck ↗","https://rugcheck.xyz/tokens/"+encodeURIComponent(c.mint)),link("DEX chart ↗","https://dexscreener.com/solana/"+encodeURIComponent(c.pair||c.mint)));
 target.append(actions);
 }
@@ -211,10 +215,12 @@ new Date().toLocaleTimeString()+". "+result.failures.join("; ");
 finally{working=false;$("csScan").disabled=false;}
 }
 async function checkTracked(){
-const mint=$("mint")?.value.trim()||"";if(!valid(mint)||tracking)return;
+const mint=$("mint")?.value.trim()||"";
+if($("ciChainSelect")?.value!=="solana"||!valid(mint)||tracking)return;
 tracking=true;$("csTrackedState").textContent="Checking RugCheck report…";
 try{
 const r=await securityFor(mint);
+if($("ciChainSelect")?.value!=="solana"||($("mint")?.value.trim()||"")!==mint)return;
 // Send normalized RugCheck result to Unified Intelligence; market scores never
 // pretend token security can be inferred from DEX transaction counts.
 window.dispatchEvent(new CustomEvent("crimson:security-check", {
@@ -228,6 +234,13 @@ for(const x of r.notes)box.append(make("p",x));
 box.append(link("Full RugCheck report ↗","https://rugcheck.xyz/tokens/"+encodeURIComponent(mint)));
 }finally{tracking=false;}
 }
+window.addEventListener("crimson:tracked-change",ev=>{
+ const chain=ev.detail?.chainId,coin=ev.detail?.mint;
+ const reason=$("csTrackedReasons");reason.replaceChildren();
+ $("csTrackedState").textContent=chain==="robinhood"?
+  "Robinhood Chain: RugCheck is Solana-only. No independent contract audit, tax, honeypot, or LP-lock certification is available. Market heuristics are not a security check.":
+  chain==="solana"&&coin?"Solana RugCheck report pending…":"Select a Solana token for RugCheck screening; Robinhood Chain security remains unverified.";
+});
 $("csScan").addEventListener("click",scan);
 $("track")?.addEventListener("click",checkTracked);
 $("mint")?.addEventListener("keydown",e=>{if(e.key==="Enter")checkTracked();});
