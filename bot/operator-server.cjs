@@ -6,6 +6,7 @@
  * deployed and explicitly configured. Never expose raw localhost HTTP publicly.
  */
 const http=require("node:http"),crypto=require("node:crypto");
+const {JupiterQuotePreview}=require("./jupiter-quote.cjs");
 const {URL}=require("node:url");
 const B58="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const origin=(process.env.BOT_FRONTEND_ORIGIN||"https://malusayf.github.io").replace(/\/$/,"");
@@ -149,6 +150,19 @@ const server=http.createServer(async(req,res)=>{
   }
   if(!auth(req))return send(res,401,{error:"Owner authentication required"});
   if(url.pathname==="/status"&&req.method==="GET")return send(res,200,capability());
+  if(url.pathname==="/quote-preview"&&req.method==="POST"){
+    // Owner-authenticated quote preview ONLY: no taker, signing or execution.
+    // Never expose JUPITER_API_KEY or provider errors to the public browser.
+    const body=await json(req);
+    if(!body||Object.keys(body).some(k=>!["inputMint","outputMint","amount"].includes(k)))
+      return send(res,400,{error:"Invalid quote request fields"});
+    try{
+      const quote=await new JupiterQuotePreview().preview(body);
+      return send(res,200,quote);
+    }catch(e){
+      return send(res,422,{error:"Jupiter quote unavailable or invalid; no trade executed"});
+    }
+  }
   if(url.pathname==="/start"&&req.method==="POST"){
     // Critical: Never turn a frontend click into unaudited transactions.
     return send(res,409,{error:"Live executor has not been securely configured or tested. No funds moved.",...capability()});
