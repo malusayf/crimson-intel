@@ -280,5 +280,13 @@ const observed=window.CRIMSON_LATEST_MARKET;
 if(observed)data.snapshot=observed;
 if(window.CRIMSON_LATEST_POSITION)data.planSnapshot=window.CRIMSON_LATEST_POSITION;
 if(window.CRIMSON_LATEST_INTELLIGENCE)data.unified=window.CRIMSON_LATEST_INTELLIGENCE;
+// Refresh per-account saved plans on every login transition; on sign-out,
+// discard private browser state immediately, even though the app is hidden.
+new MutationObserver(()=>{
+  if(document.body.classList.contains("ci-account-locked")){
+    data.userKey="";data.plans={};data.quote=null;
+  }
+  render();
+}).observe(document.body,{attributes:true,attributeFilter:["class"]});
 render();
 })();
