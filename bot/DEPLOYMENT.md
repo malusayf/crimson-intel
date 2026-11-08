@@ -86,3 +86,21 @@ npm test
 The test suite is deliberately non-funding and does not execute swaps. Code tests and a successful Railway deploy are necessary but insufficient. Independently inspect the signer, quotes, order payer and token identity, fees, execution journal, ambiguous timeouts, crash recovery, CORS auth and emergency stop before approving any real trade.
 
 No seed phrases or private keys belong in support chats.
+
+## Monitoring while working
+
+The website's AutoTrader tab now displays the dedicated wallet balance, a read-only portfolio, daily spend and realized-loss counters, pending transaction links, and the verified trade journal. Select **Enable real-trade notifications** after signing in if your browser supports notifications. Keep the browser open for these alerts; Railway market scanning is independent of the browser.
+
+The owner-authenticated GET /live/portfolio endpoint is read-only and does not generate orders. Observed DEX spot prices are not executable quotes or guaranteed exits. A submitted transaction remains blocked until successful finalized reconciliation.
+
+**Stopping while at work:** Stop prevents initiation of new orders once the worker observes it. An already-submitted transaction cannot be cancelled, and open positions are not automatically sold when trading stops. The emergency button is not on-chain cancellation. Failed/uncertain transaction submission must be reconciled before restarting.
+
+**Testing isolation:** The operator tests create a disposable temporary journal and disable production signing keys and live flags within the test process.
+
+## Remaining prerequisites and security review
+
+The deployment currently has no configured dedicated wallet, private signing seed, Jupiter API access, or private Solana RPC. Therefore it cannot submit any trade. Phantom owner login is not permission to spend Phantom assets.
+
+Railway's last dependency-install log also reported **three moderate dependency advisories**. Review npm audit and remediate or assess findings before entrusting meaningful funds. Automated tests and a successful deployment are not an independent security audit or live-trade validation.
+
+A tiny pilot requires a separately funded dedicated wallet, tested encrypted-keystore recovery, verified orders, safe signing, spend limits, crash/restart and ambiguous-submission tests, and explicit user authorization. Do not set the pilot flag just to unlock Start Live. Never share recovery phrases or signing secrets in chat.
