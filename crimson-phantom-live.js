@@ -23,7 +23,11 @@ css.textContent=[
 "#ciPhantomLive label{display:block;font-size:12px;color:#b9c6e3}",
 "#ciPhantomLive input{margin-top:6px}",
 "#ciPhantomLive .cl-off{color:#ff91a3}",
-"#ciPhantomLive .cl-on{color:#86e9bb}"
+"#ciPhantomLive .cl-on{color:#86e9bb}",
+"#ciPhantomLive .cl-funding{border:1px solid #465477;border-radius:12px;background:#111a30;padding:13px;margin:16px 0}",
+"#ciPhantomLive .cl-amount{display:flex;gap:9px;flex-wrap:wrap;align-items:end}",
+"#ciPhantomLive .cl-amount>label{flex:1;min-width:160px}",
+"#ciPhantomLive .cl-progress{border-top:1px solid #394765;margin-top:12px;padding-top:12px}"
 ].join("\n");document.head.append(css);
 const box=document.createElement("section");box.id="ciPhantomLive";
 box.innerHTML=[
@@ -38,6 +42,15 @@ box.innerHTML=[
 '</div>',
 '<label>Private operator server HTTPS URL (or localhost for development)',
 '<input id="clServerUrl" type="url" spellcheck="false" placeholder="https://your-private-trading-api.example"></label>',
+'<div class="cl-funding"><h3 style="margin:0 0 7px">◎ Fund from Phantom SOL</h3>',
+'<p class="cl-warn">Crimson can use SOL you already hold in Phantom to FUND a separate trading wallet. No automatic withdrawal from your primary Phantom account. Funding needs a separate, explicit Phantom transaction approval.</p>',
+'<div class="cl-grid"><div class="cl-card"><div class="label">PHANTOM SOL · CONFIRMED</div><div class="cl-value" id="clSolBalance">Not loaded</div></div>',
+'<div class="cl-card"><div class="label">BOT TRADING BALANCE</div><div class="cl-value" id="clTradingBalance">Not available · no signer configured</div></div></div>',
+'<div class="cl-amount"><label>Amount of your Phantom SOL to allocate (not transferred yet)<input id="clFundAmount" inputmode="decimal" type="number" min="0" step="0.000001" placeholder="0.10"></label>',
+'<button id="clBalance" type="button" disabled>Refresh SOL balance</button>',
+'<button id="clPreviewFunding" type="button" disabled>Preview allocation</button></div>',
+'<p id="clFundingPreview" class="cl-warn cl-progress">Your balance is read-only. A funding transaction cannot be prepared until the dedicated wallet, recovery verification and live executor have passed safety checks.</p>',
+'<div class="cl-actions"><button id="clFund" type="button" disabled>Fund bot wallet · Locked</button></div></div>',
 '<div class="cl-actions"><button id="clConnect" type="button">Connect Phantom</button>',
 '<button id="clCopyAddress" type="button" disabled>Copy public address</button>',
 '<button id="clAuthorize" type="button" disabled>Verify wallet ownership</button>',
@@ -52,6 +65,7 @@ box.innerHTML=[
 parent.append(box);
 const OPERATOR_ORIGIN="https://crimson-operator-api-production.up.railway.app";
 let provider=null,address="",token="",backend=null,base=OPERATOR_ORIGIN,busy=false,sessionExpires=0;
+let observedSol=null,balanceAt=0;
 function truncate(x){return x?x.slice(0,6)+"…"+x.slice(-5):"—";}
 function status(message){$("clStatus").textContent=message;}
 function safeUrl(s){
@@ -64,6 +78,8 @@ function safeUrl(s){
 }
 function update(){
  $("clWallet").textContent=address?truncate(address):"Not connected";
+ $("clSolBalance").textContent=Number.isFinite(observedSol)?observedSol.toLocaleString("en-US",{maximumFractionDigits:9})+" SOL":"Not loaded";
+ $("clTradingBalance").textContent=backend?.walletReady===true?"Wallet configured · actual balance unverified":"Not available · no signer configured";
  const authorized=!!token&&Date.now()<sessionExpires;
  $("clBackend").textContent=authorized?"OWNER VERIFIED":base?"NOT VERIFIED":"Not connected";
  $("clBotWallet").textContent=backend?.privateBotWallet?truncate(backend.privateBotWallet):"Not configured";
@@ -75,6 +91,9 @@ function update(){
  $("clCopyAddress").disabled=busy||!address;
  $("clAuthorize").disabled=busy||!address||!base;
  $("clCheck").disabled=busy||!authorized;
+ $("clBalance").disabled=busy||!authorized;
+ $("clPreviewFunding").disabled=busy||!authorized||!Number.isFinite(observedSol);
+ $("clFund").disabled=true; // No wallet transfer until audited signer and exact destination validation exist.
  $("clConnect").disabled=busy;
  $("clStart").disabled=busy||!ready||backend?.liveTrading===true;
  $("clStart").textContent=ready?"Start Live":"Start Live · Locked";
@@ -102,6 +121,39 @@ function base64(bytes){
  let s="";for(const n of v)s+=String.fromCharCode(n);
  return btoa(s);
 }
+async function refreshOwnerSol(){
+ if(!token||Date.now()>=sessionExpires)throw Error("Please verify your Phantom wallet ownership first.");
+ const v=await request("/wallet/owner-sol-balance","GET",null,true);
+ if(v.network!=="solana-mainnet"||v.wallet!==address||
+    !/^[0-9]+$/.test(String(v.lamports))||!Number.isFinite(Number(v.sol))||Number(v.sol)<0)
+   throw Error("Balance response did not match your connected Phantom wallet.");
+ const lamports=BigInt(v.lamports);
+ if(lamports>BigInt(Number.MAX_SAFE_INTEGER))throw Error("Wallet balance too large to display safely.");
+ observedSol=Number(lamports)/1e9;
+ balanceAt=Date.now();
+ status("Read-only Phantom SOL balance updated. No funds moved. Server quote time: "+(v.checkedAt||"unknown"));
+}
+$("clBalance").addEventListener("click",async()=>{
+ if(busy)return;busy=true;update();
+ try{await refreshOwnerSol();}
+ catch(e){observedSol=null;status("SOL balance unavailable: "+String(e.message));}
+ finally{busy=false;update();}
+});
+$("clPreviewFunding").addEventListener("click",()=>{
+ const raw=$("clFundAmount").value.trim();
+ const chosen=Number(raw);
+ const lamportPrecision=/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,9})?$/.test(raw);
+ const reserve=0.02;
+ if(!lamportPrecision||!(chosen>0)||!Number.isFinite(observedSol)||
+    chosen>Math.max(0,observedSol-reserve)){
+   $("clFundingPreview").textContent="Enter a valid SOL amount up to your confirmed balance minus a 0.02 SOL network-fee reserve. No transfer has been prepared.";
+   return;
+ }
+ const remaining=observedSol-chosen;
+ $("clFundingPreview").textContent=
+   "Funding preview ONLY: "+chosen.toFixed(6)+" SOL allocated, roughly "+remaining.toFixed(6)+
+   " SOL left in Phantom before actual network fees. Trading-wallet deposit address is NOT configured, so nothing can be sent. A separate Phantom transaction approval will be required.";
+});
 $("clServerUrl").addEventListener("change",()=>{
  try{base=safeUrl($("clServerUrl").value);token="";sessionExpires=0;backend=null;status("Server address set. Verify Phantom ownership to authenticate.");}
  catch(e){base="";token="";backend=null;status("Server URL error: "+e.message);}
@@ -115,7 +167,7 @@ $("clConnect").addEventListener("click",async()=>{
    const result=await provider.connect();
    address=String(result?.publicKey||provider.publicKey||"");
    if(!address)throw Error("No public address returned.");
-   backend=null;token="";sessionExpires=0;
+   backend=null;token="";sessionExpires=0;observedSol=null;
    status("Phantom connected: "+address+". This connection does not authorize automatic spending.");
  }catch(e){status("Phantom connection unsuccessful: "+String(e.message));}
  finally{busy=false;update();}
@@ -143,6 +195,7 @@ $("clAuthorize").addEventListener("click",async()=>{
    token=verified.token;sessionExpires=Date.now()+(Math.max(0,Number(verified.expiresInSeconds)||0)*1000);
    backend=verified;
    status("Wallet ownership verified. "+(verified.message||"Live trading is not configured."));
+   try{await refreshOwnerSol();}catch(e){observedSol=null;status("Wallet verified; SOL balance could not be retrieved: "+String(e.message));}
  }catch(e){token="";backend=null;sessionExpires=0;status("Authentication unsuccessful: "+String(e.message));}
  finally{busy=false;update();}
 });
@@ -177,7 +230,7 @@ $("clDisconnect").addEventListener("click",()=>{
    status("Stop real trading on the server BEFORE disconnecting. Closing Phantom alone does not stop the bot.");
    return;
  }
- token="";sessionExpires=0;backend=null;address="";provider=null;
+ token="";sessionExpires=0;backend=null;address="";provider=null;observedSol=null;
  status("Owner session cleared. No bot wallet was connected or granted spending authority.");
  update();
 });
