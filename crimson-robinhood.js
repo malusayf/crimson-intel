@@ -128,6 +128,12 @@ function changeMode(mode){
  }
  if(mode==="dex")loadDex();else if(mode==="stock")loadStocks();else drawWatch();
 }
+function useSharedTracker(address){
+ if(!validAddress(address)){status("No exact base-token contract available for the shared tracker.");return;}
+ if(!window.CRIMSON_TRACK_ASSET?.("robinhood",address))
+  status("Cross-chain tracker is unavailable; refresh Crimson Intel.");
+ else status("Sent "+shorter(address)+" to the unified dashboard with TP, SL and risk tools.");
+}
 function drawDex(){
  const body=$("rhDexRows");body.replaceChildren();
  const data=state.dex;
@@ -146,7 +152,8 @@ function drawDex(){
   cell(tr,pct(p.change24hPct));
   cell(tr,p.issuerCheck==="issuer-listed"?"Exact issuer contract":"Not issuer-verified",
     p.issuerCheck==="issuer-listed"?"rh-good":"rh-dim");
-  const act=cell(tr,"");act.append(button("Inspect",()=>selectDex(p)));
+  const act=cell(tr,"");act.append(button("Track + TP/SL",()=>useSharedTracker(p.baseTokenAddress)));
+  act.append(button("Inspect",()=>selectDex(p)));
   act.append(button(watching("dex",p.poolAddress)?"★":"☆",
     ()=>toggleWatch("dex",p.poolAddress,p.poolName||p.baseTokenSymbol)));
   body.append(tr);
@@ -169,6 +176,7 @@ function selectDex(p){
  notes.push("Holders and unique buyers not verified; pool buys/sells are transaction counts");
  d.append(el("p",notes.join(" · "),"rh-bad"));
  d.append(link("View pool on GeckoTerminal","https://www.geckoterminal.com/robinhood/pools/"+encodeURIComponent(p.poolAddress)));
+ if(validAddress(p.baseTokenAddress)){d.append(document.createTextNode(" · "));d.append(button("Open in shared TP/SL tracker",()=>useSharedTracker(p.baseTokenAddress)));}
  if(p.baseTokenAddress){
   d.append(document.createTextNode(" · "));
   d.append(link("View token contract on Blockscout","https://robinhoodchain.blockscout.com/token/"+p.baseTokenAddress));
@@ -203,6 +211,8 @@ async function inspectToken(address){
    detail.append(link("Open primary DEX pool","https://www.geckoterminal.com/robinhood/pools/"+encodeURIComponent(x.topPool.poolAddress)));
   }else detail.append(el("p","No base-token DEX pool was returned. No price or liquidity estimate is available.","rh-bad"));
   detail.append(document.createTextNode(" · "));
+  detail.append(button("Open in shared TP/SL tracker",()=>useSharedTracker(address)));
+  detail.append(document.createTextNode(" · "));
   detail.append(link("Verify exact token contract on Blockscout","https://robinhoodchain.blockscout.com/token/"+x.tokenAddress));
   detail.append(document.createTextNode(" · "));
   detail.append(button(watching("token",address)?"Remove token watch":"Watch this token contract",
@@ -222,6 +232,7 @@ function drawStocks(){
     x.tradingCapabilities?.fractionalTradability||"Not reported";
   cell(tr,market);
   const actions=cell(tr,"");
+  actions.append(button("Track + TP/SL",()=>useSharedTracker(x.contract)));
   actions.append(button("Issuer quote",()=>selectStock(x.symbol)));
   actions.append(button(watching("stock",x.symbol)?"★":"☆",()=>toggleWatch("stock",x.symbol,x.name)));
   body.append(tr);
@@ -247,6 +258,8 @@ async function selectStock(symbol){
   d.append(el("p","Quote generated: "+(q.quoteGeneratedAt?new Date(q.quoteGeneratedAt).toLocaleString():"Not reported")+
    (quote.stale?" · STALE CACHED DATA":"")));
   d.append(el("p","Not a guaranteed on-chain executable price. Underlying volume, if shown, is not token DEX trading volume.","rh-bad"));
+  d.append(button("Open in shared TP/SL tracker",()=>useSharedTracker(stock.contract)));
+  d.append(document.createTextNode(" · "));
   d.append(link("Verify issuer contract on Blockscout","https://robinhoodchain.blockscout.com/token/"+stock.contract));
   d.append(document.createTextNode(" · "));
   d.append(button(watching("stock",symbol)?"Remove watch":"Add to watchlist",
