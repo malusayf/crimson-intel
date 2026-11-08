@@ -250,8 +250,12 @@
     if(!MINT.test(mint)||mint!==activeMint||ev.detail?.chainId!==activePair?.chainId){
       activeMint=MINT.test(mint)?mint:"";activePair=null;
       for(const id of ["cmBuy","cmOpportunity","cmDanger"])$(id).textContent="—";
+      $("cmSecurity").textContent="UNVERIFIED";$("cmSecurityInfo").textContent="Waiting for chain-specific security assessment.";
+      $("cmConfidence").textContent="No new live observations yet.";
+      $("cmBuyDetails").textContent="No recent token data.";
       $("cmDecision").textContent="WAIT · LOADING NEW TOKEN";
-      $("cmLiveStatus").textContent="Loading "+mint.slice(0,8)+"…";
+      $("cmLiveStatus").textContent=activeMint?"Loading "+mint.slice(0,8)+"…":"Select a token to begin.";
+      evidence($("cmEvidence"),["Price, activity and safety data pending."]);
     }
   });
   window.addEventListener("crimson:security-check",ev=>{
