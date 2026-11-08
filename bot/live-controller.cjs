@@ -204,9 +204,10 @@ class LiveController{
   }
   this.state.pending=null;this.save();
  }
- async reconcile(){
+ async reconcile({internal=false}={}){
   if(!this.state?.pending)return {resolved:true,note:'No pending transaction'};
-  if(this.running||this.busy)return {resolved:false,note:'Stop the worker and wait for any in-flight API call before reconciling'};
+  if(!internal&&(this.running||this.busy))
+    return {resolved:false,note:'Stop the worker and wait for any in-flight API call before reconciling'};
   const pending=this.state.pending;
   // A durable phase marker proves the app never reached the network-submit call.
   // Only those specifically marked local-only are safely cancellable.
@@ -254,7 +255,7 @@ class LiveController{
    const result=await this.executeSigned({signedTransaction:Buffer.from(tx.serialize()).toString('base64'),requestId:order.requestId});
    if(result.signature!==signature||result.status!=='Success')throw Error('Execution not confirmed; reconcile before resuming');
    for(let i=0;i<12;i++){
-     const settled=await this.reconcile();if(settled.resolved)return settled;
+     const settled=await this.reconcile({internal:true});if(settled.resolved)return settled;
      await new Promise(r=>setTimeout(r,5000));
    }
    throw Error('Finalized on-chain receipt unavailable; pending locked');
