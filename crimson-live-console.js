@@ -55,6 +55,7 @@ node.innerHTML=[
 '<button id="lvConnect" type="button">Connect Phantom</button>',
 '<button id="lvVerify" type="button" disabled>Verify owner</button>',
 '<button id="lvRefresh" type="button" disabled>Refresh live status</button>',
+'<button id="lvNotify" type="button" disabled>Enable real-trade notifications</button>',
 '<button id="lvCopy" type="button" disabled>Copy Phantom address</button>',
 '<button id="lvCopyBot" type="button" disabled>Copy bot deposit address</button>',
 '<button id="lvLogout" type="button">Disconnect</button>',
@@ -107,7 +108,8 @@ node.innerHTML=[
 const existing=document.getElementById("ccCommandCenter");
 if(existing)existing.insertAdjacentElement("afterend",node);else main.append(node);
 let provider=null,ownerAddress="",serverStatus=null,token="",expiresAt=0,
-  solBalance=null,botBalance=null,ledger=null,scan=null,portfolio=null,busy=false,lastPoll=0;
+  solBalance=null,botBalance=null,ledger=null,scan=null,portfolio=null,busy=false,lastPoll=0,
+  notifyEnabled=false,seenSignatures=null;
 const shorten=x=>x?x.slice(0,6)+"…"+x.slice(-6):"—";
 const validWallet=x=>typeof x==="string"&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(x);
 const loggedIn=()=>!!token&&Date.now()<expiresAt&&validWallet(ownerAddress);
@@ -133,7 +135,7 @@ async function api(path,method="GET",body=null,auth=true){
  }finally{clearTimeout(timeout);}
 }
 function reset(reason){
-  token="";expiresAt=0;ownerAddress="";serverStatus=null;ledger=null;portfolio=null;solBalance=null;botBalance=null;scan=null;provider=null;
+  token="";expiresAt=0;ownerAddress="";serverStatus=null;ledger=null;portfolio=null;seenSignatures=null;solBalance=null;botBalance=null;scan=null;provider=null;
   $("lvAllocation").textContent="Funding authorization reset; no funds moved.";
   setMsg(reason||"Disconnected. No live trading authorization.");
   draw();drawLedger();drawScan();drawPortfolio();
@@ -174,6 +176,8 @@ function draw(){
  $("lvConnect").disabled=busy;
  $("lvVerify").disabled=busy||!validWallet(ownerAddress);
  $("lvRefresh").disabled=busy||!loggedIn();
+ $("lvNotify").disabled=busy||!loggedIn()||!("Notification" in window);
+ $("lvNotify").textContent=notifyEnabled?"Disable real-trade notifications":"Enable real-trade notifications";
  $("lvJournalRefresh").disabled=busy||!loggedIn();
  $("lvScanRefresh").disabled=busy||!loggedIn();
  $("lvCopy").disabled=busy||!validWallet(ownerAddress);
@@ -212,6 +216,20 @@ function drawScan(){
   for(const cell of cells){const td=document.createElement("td");td.textContent=cell;row.append(td);}
   body.append(row);
  }
+}
+function checkTradeAlerts(){
+ if(!ledger?.trades||!Array.isArray(ledger.trades))return;
+ const next=new Set(ledger.trades.map(x=>x.signature));
+ if(seenSignatures!==null&&notifyEnabled&&window.Notification?.permission==="granted"){
+  for(const x of ledger.trades.filter(x=>!seenSignatures.has(x.signature)).slice(0,4)){
+   try{const n=new Notification("Crimson LIVE — "+x.side+" finalized",{
+    body:shorten(x.mint)+" · "+x.tokenQuantity+" tokens · "+x.effectiveSol+" SOL · confirmed on Solana",
+    tag:"crimson-finalized-"+x.signature
+   });n.onclick=()=>{window.focus();n.close();};}
+   catch(err){setMsg("Browser notification unavailable; see the verified trade journal below.");}
+  }
+ }
+ seenSignatures=next;
 }
 function drawPortfolio(){
  const info=portfolio,tbody=$("lvPositions");tbody.replaceChildren();
@@ -293,7 +311,7 @@ async function refreshAll(){
  else ledger=null;
  scan=scanResult.status==="fulfilled"&&scanResult.value.mode==="LIVE_MARKET_RESEARCH_ONLY"?scanResult.value:null;
  portfolio=portfolioResult.status==="fulfilled"&&portfolioResult.value.mode==="LIVE_ONLY"&&Array.isArray(portfolioResult.value.positions)?portfolioResult.value:null;
- draw();drawLedger();drawScan();drawPortfolio();lastPoll=Date.now();
+ checkTradeAlerts();draw();drawLedger();drawScan();drawPortfolio();lastPoll=Date.now();
 }
 $("lvConnect").addEventListener("click",async()=>{
  if(busy)return;busy=true;draw();
@@ -303,7 +321,7 @@ $("lvConnect").addEventListener("click",async()=>{
   const result=await provider.connect();
   const address=String(result?.publicKey||provider.publicKey||"");
   if(!validWallet(address))throw Error("Phantom did not provide a valid Solana wallet address");
-  ownerAddress=address;token="";expiresAt=0;serverStatus=null;ledger=null;scan=null;portfolio=null;solBalance=null;botBalance=null;
+  ownerAddress=address;token="";expiresAt=0;serverStatus=null;ledger=null;scan=null;portfolio=null;seenSignatures=null;notifyEnabled=false;solBalance=null;botBalance=null;
   setMsg("Connected to Phantom "+address+". Click Verify owner to authenticate the private trading server. No money moved.");
  }catch(e){setMsg("Phantom connection failed: "+String(e.message).slice(0,190));}
  finally{busy=false;draw();}
@@ -335,6 +353,20 @@ $("lvRefresh").addEventListener("click",async()=>{
  try{await refreshAll();setMsg(serverStatus?.message||"Live status checked");}
  catch(e){setMsg("Status unavailable: "+e.message);}
  finally{busy=false;draw();}
+});
+$("lvNotify").addEventListener("click",async()=>{
+ if(!loggedIn()||!("Notification" in window))return;
+ try{
+  if(notifyEnabled){notifyEnabled=false;setMsg("Browser real-trade notifications disabled.");}
+  else{
+   const permission=Notification.permission==="granted"?"granted":await Notification.requestPermission();
+   notifyEnabled=permission==="granted";
+   setMsg(notifyEnabled?
+    "Browser notifications enabled for new finalized buys and sells while this page is open.":
+    "Notifications were not approved. You can still view all finalized transactions in the journal.");
+  }
+ }catch(e){setMsg("Notifications unsupported or blocked in this browser.");}
+ finally{draw();}
 });
 $("lvScanRefresh").addEventListener("click",async()=>{
  if(busy||!loggedIn())return;busy=true;draw();
@@ -436,7 +468,7 @@ if(w?.on){
  w.on("disconnect",()=>reset("Phantom disconnected. Sign in again to view live trades."));
 }
 setInterval(async()=>{
- if(document.hidden||busy||!loggedIn()||Date.now()-lastPoll<30000)return;
+ if(busy||!loggedIn()||Date.now()-lastPoll<30000)return;
  busy=true;draw();
  try{await refreshAll();}catch(e){setMsg("Live data refresh unavailable: "+e.message);}
  finally{busy=false;draw();}
