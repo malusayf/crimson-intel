@@ -55,6 +55,7 @@ class LiveController{
   const seed=e.BOT_SIGNER_SEED_BASE64||'';
   if(!/^[A-Za-z0-9+/]{43}=$/.test(seed)||Buffer.from(seed,'base64').length!==32)
    missing.push('BOT_SIGNER_SEED_BASE64 (32-byte dedicated wallet seed)');
+  else if(Risk.mintOK(expected)){try{this.ensureSigner();}catch(e){missing.push('Signer/address verification failed');}}
   const maxTrade=Number(e.BOT_MAX_TRADE_SOL),maxDay=Number(e.BOT_MAX_DAILY_SPEND_SOL),
    maxLoss=Number(e.BOT_MAX_DAILY_LOSS_SOL),maxOpen=Number(e.BOT_MAX_OPEN_LIVE),
    maxBuys=Number(e.BOT_MAX_DAILY_LIVE_BUYS);
@@ -81,7 +82,7 @@ class LiveController{
  }
  status(){
   const r=this.requirements();return {
-   walletReady:r.signerConfigured&&!!r.wallet,liveExecutorReady:r.ready,
+   walletReady:r.signerConfigured&&!!r.wallet&&!r.missing.includes('Signer/address verification failed'),liveExecutorReady:r.ready,
    recoveryVerified:r.recoveryVerified,riskControlsReady:r.ready,
    onchainConfirmationReady:r.onchainConfirmationReady,
    liveTrading:this.running,privateBotWallet:r.wallet,missing:r.missing,
@@ -200,6 +201,9 @@ class LiveController{
    }
    throw Error('Finalized on-chain receipt unavailable; pending locked');
   }catch(e){
+   // Only a pre-signature failure can be safely cleared automatically;
+   // once a signature exists it MUST remain locked until chain reconciliation.
+   if(this.state.pending&&!this.state.pending.signature)this.state.pending=null;
    this.running=false;this.lastError=String(e.message||e).slice(0,180);
    this.state.lastError=this.lastError;this.save();this.log('[Crimson LIVE HALT] '+this.lastError);
    throw e;
