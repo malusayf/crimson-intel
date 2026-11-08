@@ -745,7 +745,7 @@ a {
 
 </main>
 
-<script src="./crimson-chain-data.js?v=20261108-unified-v1"></script>
+<script src="./crimson-chain-data.js?v=20261108-unified-v2"></script>
 <script>
 (() => {
   'use strict';
@@ -1291,8 +1291,11 @@ a {
 
       $('pool').textContent =
         window.CrimsonChainData.networkLabel(requestedChain) + ' · ' +
-        (pair.priceType==='issuer-reference'?'Issuer reference only · no DEX liquidity':
-        'Selected pool: '+(pair.dexId||'DEX')+' · '+(pair.pairAddress||'unknown'))+
+        (pair.priceType==='issuer-reference'?
+          'Issuer reference only · no executable DEX quote or liquidity'+
+          (pair.currentMultiplier?' · shares/token '+pair.currentMultiplier:'')+
+          (pair.isTradingHalt?' · UNDERLYING TRADING HALT':''):
+          'Selected pool: '+(pair.dexId||'DEX')+' · '+(pair.pairAddress||'unknown'))+
         (pair.issuerListed?' · issuer-listed Stock Token (not a safety certification)':'')+
         (pair.dataStale?' · STALE DATA':'');
 
@@ -1632,7 +1635,7 @@ a {
 <script src="./crimson-radar.js?v=20261108-unified-risk-v2" defer></script>
 <script src="./crimson-safety-scout.js?v=20261108-chain-risk-separation" defer></script>
 <script src="./crimson-position-intelligence.js?v=20261108-cross-chain-tpsl-v2" defer></script>
-<script src="./crimson-guardian.js?v=20261108-cross-chain-locks" defer></script>
+<script src="./crimson-guardian.js?v=20261108-cross-chain-locks-v2" defer></script>
 <script src="./crimson-command-center.js?v=20261108-cross-chain-portfolio" defer></script>
 <script src="./crimson-live-console.js?v=20261108-work-monitor-alerts-v3" defer></script>
 <script src="./crimson-robinhood.js?v=20261108-shared-track-v3" defer></script>
