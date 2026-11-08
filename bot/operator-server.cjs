@@ -7,6 +7,7 @@
  */
 const http=require("node:http"),crypto=require("node:crypto"),fs=require("node:fs"),path=require("node:path");
 const {JupiterQuotePreview}=require("./jupiter-quote.cjs");
+const {LiveTradeJournal}=require("./live-journal.cjs");
 const {URL}=require("node:url");
 const B58="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const origin=(process.env.BOT_FRONTEND_ORIGIN||"https://malusayf.github.io").replace(/\/$/,"");
@@ -70,59 +71,9 @@ async function ownerSolBalance(){
  }finally{clearTimeout(timer);}
 }
 const MAX_BODY=8192;
-const paperDir=path.resolve(process.env.BOT_DATA_DIR||path.join(__dirname,".data"));
-const paperFile=path.join(paperDir,"paper.json");
-const paperControl={pause:path.join(paperDir,"PAUSE"),kill:path.join(paperDir,"KILL")};
-function paperStatus(){
- if(process.env.BOT_AUTORUN_PAPER!=="true")
-   return {mode:"PAPER_ONLY",configured:false,online:false,liveTrading:false,
-     message:"Paper runner is not configured for this service."};
- const flags={paused:fs.existsSync(paperControl.pause),kill:fs.existsSync(paperControl.kill)};
- let st;
- try{
-   if(fs.statSync(paperFile).size>6*1024*1024)throw Error("Oversized paper journal");
-   st=JSON.parse(fs.readFileSync(paperFile,"utf8"));
- }catch(e){
-   return {mode:"PAPER_ONLY",configured:true,online:false,liveTrading:false,
-     ...flags,message:"Paper runner initializing or journal unavailable."};
- }
- if(st?.mode!=="PAPER_ONLY"||!Array.isArray(st.positions)||!Array.isArray(st.trades)||
-    !Array.isArray(st.events)||!Number.isFinite(st.cash))
-   return {mode:"PAPER_ONLY",configured:true,online:false,liveTrading:false,
-     ...flags,message:"Paper journal invalid or incomplete."};
- const equity=st.cash+st.positions.reduce((sum,pos)=>sum+Number(pos.qty||0)*
-   Number(pos.lastMark||pos.fillPrice||0),0);
- const age=Date.now()-Number(st.lastTickAt||0);
- const online=age>=0&&age<=120000;
- return {mode:"PAPER_ONLY",configured:true,online,liveTrading:false,
-   paused:flags.paused,kill:flags.kill,
-   cashUsd:Math.round(st.cash*100)/100,
-   equityUsd:Number.isFinite(equity)?Math.round(equity*100)/100:null,
-   initialCashUsd:st.initialCash,
-   openPositions:st.positions.length,tradeCount:st.trades.length,
-   scanCount:st.scanCount,cycleCount:st.cycleCount,lastScan:st.latestScan,
-   lastTickAt:st.lastTickAt?new Date(st.lastTickAt).toISOString():null,
-   lastError:st.lastError||"",
-   positions:st.positions.slice(0,5).map(p=>({mint:p.mint,symbol:p.symbol,
-     qty:p.qty,fillPrice:p.fillPrice,lastMark:p.lastMark,stop:p.stop,
-     tp1:p.tp1,tp2:p.tp2,tp3:p.tp3,stage:p.stage})),
-   recentTrades:st.trades.slice(-12).map(t=>({side:t.side,mint:t.mint,
-     time:t.time,fillPrice:t.fillPrice,qty:t.qty,mode:t.mode,
-     realizedUsd:t.realizedUsd})),
-   recentEvents:st.events.slice(-12).map(ev=>({at:ev.at,type:ev.type,
-     message:ev.message,mint:ev.mint||null,error:ev.error||null})),
-   message:online?"Autonomous paper bot running. No wallet orders or real SOL trades.":"Paper journal has not updated recently; runner may be offline."
- };
-}
-function setPaperFlag(type,value){
- if(process.env.BOT_AUTORUN_PAPER!=="true")throw Error("Paper runner not configured");
- const filename=paperControl[type];
- if(!filename)throw Error("Invalid control flag");
- fs.mkdirSync(paperDir,{recursive:true,mode:0o700});
- if(value)fs.writeFileSync(filename,new Date().toISOString()+"\n",{mode:0o600});
- else try{fs.unlinkSync(filename);}catch(e){if(e.code!=="ENOENT")throw e;}
- return paperStatus();
-}
+// Live transaction journal stays on persistent storage, separate from archived simulations.
+const liveJournal=new LiveTradeJournal({directory:process.env.BOT_DATA_DIR,
+  wallet:managedAddress||undefined});
 function setSecurityHeaders(res){
  res.setHeader("cache-control","no-store");
  res.setHeader("x-content-type-options","nosniff");
@@ -179,6 +130,7 @@ function capability(){
   online:true,network:"solana-mainnet",walletConnection:"Phantom owner authentication",
   privateBotWallet:managedAddress||null,
   walletReady:false,liveExecutorReady:false,liveTrading:false,
+  liveOnly:true,simulationDisabled:true,tradeJournalReady:!!process.env.BOT_DATA_DIR,
   state:"NOT_CONFIGURED",
   message:"Owner authentication is available, but no audited live signer/execution worker is installed. START LIVE is disabled.",
   limitations:["This service cannot directly sign using a connected Phantom extension",
@@ -234,21 +186,27 @@ const server=http.createServer(async(req,res)=>{
   }
   if(!auth(req))return send(res,401,{error:"Owner authentication required"});
   if(url.pathname==="/status"&&req.method==="GET")return send(res,200,capability());
-  if(url.pathname==="/paper/status"&&req.method==="GET")
-    return send(res,200,paperStatus());
-  if(req.method==="POST"&&
-     ["/paper/pause","/paper/resume","/paper/kill","/paper/clear-kill"].includes(url.pathname)){
-    const command=url.pathname.split("/").at(-1);
-    const type=command==="pause"||command==="resume"?"pause":"kill";
-    const value=command==="pause"||command==="kill";
+  if(url.pathname==="/live/trades"&&req.method==="GET"){
     try{
-      const result=setPaperFlag(type,value);
-      return send(res,200,{...result,commandAcknowledged:command,
-        message:command==="pause"?"New simulated buys paused; modeled protective exits continue.":
-          command==="kill"?"All modeled trades blocked, including simulated exits.":
-          command==="clear-kill"?"Paper kill flag cleared. No live trading enabled.":
-          "Paper buy scanning resumed. This does not authorize real trades."});
-    }catch(e){return send(res,503,{error:"Paper controls unavailable; no live trading enabled."});}
+      return send(res,200,{...liveJournal.summary(),
+        executionReady:false,liveTrading:false,
+        explanation:"Only finalized swaps from the dedicated bot wallet can enter this journal. No real executor is installed yet."});
+    }catch(e){return send(res,503,{error:"Verified live trade journal unavailable; no trades were fabricated."});}
+  }
+  if(url.pathname==="/live/trades.csv"&&req.method==="GET"){
+    try{
+      const report=liveJournal.summary();
+      const fields=["blockTime","side","mint","tokenQuantity","effectiveSol",
+        "priceSolPerToken","networkFeeSol","signature","confirmation"];
+      const esc=x=>'"'+String(x??"").replace(/"/g,'""').replace(/^[=+@-]/,"'$&")+'"';
+      const rows=[fields.map(esc).join(","),
+        ...report.trades.map(t=>fields.map(k=>esc(t[k])).join(","))];
+      setSecurityHeaders(res);
+      res.writeHead(200,{"content-type":"text/csv; charset=utf-8",
+        "content-disposition":"attachment; filename=crimson-real-transactions.csv"});
+      res.end(rows.join("\r\n")+"\r\n");
+      return;
+    }catch(e){return send(res,503,{error:"Verified live trade CSV unavailable"});}
   }
   if(url.pathname==="/wallet/owner-sol-balance"&&req.method==="GET"){
     // READ ONLY. Fetch only configured, signed-in owner wallet. No arbitrary
