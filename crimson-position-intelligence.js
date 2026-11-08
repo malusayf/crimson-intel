@@ -138,7 +138,13 @@
       candles=getOHLC(body,current.mint,n(current.pair.priceUsd));
       cacheKey=key;cacheTime=Date.now();feedError="";
     }catch(e){
-      if(thisRequest===requestId){candles=null;feedError=String(e?.message||"OHLC unavailable");}
+      if(thisRequest===requestId){
+        candles=null;
+        feedError=String(e?.message||"OHLC unavailable");
+        // Back off failed public-provider queries; don't retry every 20 seconds.
+        cacheKey=key;
+        cacheTime=Date.now();
+      }
     }finally{
       requestBusy=false;render();
     }
