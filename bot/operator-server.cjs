@@ -182,6 +182,13 @@ const server=http.createServer(async(req,res)=>{
    try{return send(res,200,await robinhoodMarket.quote(symbol));}
    catch(e){return send(res,503,{error:"Official Robinhood Stock Token quote unavailable."});}
   }
+  if(req.method==="GET"&&url.pathname==="/robinhood/token"){
+   const address=url.searchParams.get("address")||"";
+   if(!/^0x[a-fA-F0-9]{40}$/.test(address))
+     return send(res,400,{error:"Valid Robinhood Chain token contract required"});
+   try{return send(res,200,await robinhoodMarket.token(address));}
+   catch(e){return send(res,503,{error:"Robinhood Chain token pools unavailable."});}
+  }
   if(req.method==="GET"&&url.pathname==="/robinhood/pool"){
    const address=url.searchParams.get("address")||"";
    if(!/^0x[a-fA-F0-9]{40}$/.test(address))
