@@ -50,6 +50,8 @@ async function test(){
    const unauthorized=await req("/auth/challenge","POST",{address:"So11111111111111111111111111111111111111112"});
    assert.equal(unauthorized.status,403);
    const noSession=await req("/status");assert.equal(noSession.status,401);
+   const noPaperSession=await req("/paper/status");assert.equal(noPaperSession.status,401);
+   const noPaperControl=await req("/paper/pause","POST",{});assert.equal(noPaperControl.status,401);
    const noStart=await req("/start","POST",{});assert.equal(noStart.status,401);
    const challenge=await req("/auth/challenge","POST",{address});
    assert.equal(challenge.status,200);
@@ -67,6 +69,14 @@ async function test(){
    const verified=await req("/status","GET",null,ownerSession);
    assert.equal(verified.status,200);
    assert.equal(verified.data.walletReady,false);
+   const paper=await req("/paper/status","GET",null,ownerSession);
+   assert.equal(paper.status,200);
+   assert.equal(paper.data.mode,"PAPER_ONLY");
+   assert.equal(paper.data.liveTrading,false);
+   if(process.env.BOT_AUTORUN_PAPER!=="true"){
+     const notConfigured=await req("/paper/pause","POST",{},ownerSession);
+     assert.equal(notConfigured.status,503,"Paper controls must refuse action without deployed runner");
+   }
    const publicBalance=await req("/wallet/owner-sol-balance");
    assert.equal(publicBalance.status,401,"unsigned account cannot view balance");
    const solBalance=await req("/wallet/owner-sol-balance","GET",null,ownerSession);
