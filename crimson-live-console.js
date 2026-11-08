@@ -68,6 +68,17 @@ node.innerHTML=[
 '<button id="lvPreview" type="button" disabled>Preview allocation</button>',
 '<button id="lvFund" type="button" disabled>Fund dedicated wallet · Locked</button></div>',
 '<p class="lv-sub" id="lvAllocation">Dedicated trading wallet and recovery must be verified before funds can be transferred.</p></div>',
+'<div class="lv-section"><div class="lv-top"><div><h3>Live Solana Market Scanner</h3>',
+'<p class="lv-sub">Observes real Solana market data and security screens. It does not simulate trades or move funds.</p></div>',
+'<button id="lvScanRefresh" type="button" disabled>Refresh scan</button></div>',
+'<div class="lv-grid"><div class="lv-tile"><div class="lv-kicker">SCAN STATUS</div><b id="lvScanStatus">Not checked</b></div>',
+'<div class="lv-tile"><div class="lv-kicker">COINS DISCOVERED</div><b id="lvDiscovered">—</b></div>',
+'<div class="lv-tile"><div class="lv-kicker">MARKET FILTER PASSED</div><b id="lvQualified">—</b></div>',
+'<div class="lv-tile"><div class="lv-kicker">SECURITY FILTER PASSED</div><b id="lvSafeCount">—</b></div></div>',
+'<p class="lv-sub" id="lvScanTime">No live scan data loaded.</p>',
+'<div class="lv-table-wrap"><table class="lv-table"><thead><tr>',
+'<th>Token</th><th>Observed price (USD)</th><th>Liquidity (USD)</th><th>5m buying</th><th>Security</th><th>Candle setup</th>',
+'</tr></thead><tbody id="lvScanRows"></tbody></table></div></div>',
 '<div class="lv-section"><div class="lv-top"><div><h3>Real Trade Journal</h3>',
 '<p class="lv-sub">Only finalized on-chain buys and sells from the dedicated trading wallet. Actual SOL/token price includes net wallet fees and rent adjustments.</p></div>',
 '<div class="lv-actions"><button id="lvJournalRefresh" type="button" disabled>Refresh records</button>',
@@ -83,7 +94,7 @@ node.innerHTML=[
 const existing=document.getElementById("ccCommandCenter");
 if(existing)existing.insertAdjacentElement("afterend",node);else main.append(node);
 let provider=null,ownerAddress="",serverStatus=null,token="",expiresAt=0,
-  solBalance=null,ledger=null,busy=false,lastPoll=0;
+  solBalance=null,ledger=null,scan=null,busy=false,lastPoll=0;
 const shorten=x=>x?x.slice(0,6)+"…"+x.slice(-6):"—";
 const validWallet=x=>typeof x==="string"&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(x);
 const loggedIn=()=>!!token&&Date.now()<expiresAt&&validWallet(ownerAddress);
@@ -109,10 +120,10 @@ async function api(path,method="GET",body=null,auth=true){
  }finally{clearTimeout(timeout);}
 }
 function reset(reason){
-  token="";expiresAt=0;ownerAddress="";serverStatus=null;ledger=null;solBalance=null;provider=null;
+  token="";expiresAt=0;ownerAddress="";serverStatus=null;ledger=null;solBalance=null;scan=null;provider=null;
   $("lvAllocation").textContent="Funding authorization reset; no funds moved.";
   setMsg(reason||"Disconnected. No live trading authorization.");
-  draw();drawLedger();
+  draw();drawLedger();drawScan();
 }
 function ready(){
  return loggedIn()&&serverStatus?.online===true&&
@@ -138,6 +149,7 @@ function draw(){
  $("lvVerify").disabled=busy||!validWallet(ownerAddress);
  $("lvRefresh").disabled=busy||!loggedIn();
  $("lvJournalRefresh").disabled=busy||!loggedIn();
+ $("lvScanRefresh").disabled=busy||!loggedIn();
  $("lvCopy").disabled=busy||!validWallet(ownerAddress);
  $("lvPreview").disabled=busy||!loggedIn()||!Number.isFinite(solBalance);
  $("lvExport").disabled=busy||!loggedIn()||!(ledger?.entries>0);
@@ -146,6 +158,32 @@ function draw(){
  $("lvStop").disabled=busy||!active;
  $("lvEmergency").disabled=busy||!active;
  $("lvFund").disabled=true; // No unverified destination or signing workflow.
+}
+function drawScan(){
+ $("lvScanStatus").textContent=!scan?"NOT CHECKED":
+   scan.enabled===false?"OFFLINE":scan.lastError?"DATA UNAVAILABLE":"OBSERVING LIVE MARKETS";
+ $("lvDiscovered").textContent=Number.isInteger(scan?.discovered)?String(scan.discovered):"—";
+ $("lvQualified").textContent=Number.isInteger(scan?.marketQualified)?String(scan.marketQualified):"—";
+ $("lvSafeCount").textContent=Number.isInteger(scan?.securityQualified)?String(scan.securityQualified):"—";
+ $("lvScanTime").textContent=scan?.lastScanAt?
+   "Latest observations: "+new Date(scan.lastScanAt).toLocaleString()+
+    (scan.lastError?" · "+scan.lastError:"")+
+    " · Live market research only; zero executable orders":
+   "Live scanner status not available.";
+ const body=$("lvScanRows");body.replaceChildren();
+ for(const item of (scan?.candidates||[]).slice(0,10)){
+  const row=document.createElement("tr");
+  const cells=[
+   item.symbol||item.mint?.slice(0,8)||"Unknown",
+   Number.isFinite(item.priceUsd)?"$"+Number(item.priceUsd).toPrecision(7):"—",
+   Number.isFinite(item.liquidityUsd)?"$"+Math.round(item.liquidityUsd).toLocaleString():"—",
+   Number.isFinite(item.buyShare5m)?(item.buyShare5m*100).toFixed(1)+"%":"—",
+   item.securityPass?"Report passed (not rug-proof)":"Not verified / risk",
+   item.candleConfirmed?"Structure watch, no order":"No entry confirmation"
+  ];
+  for(const cell of cells){const td=document.createElement("td");td.textContent=cell;row.append(td);}
+  body.append(row);
+ }
 }
 function drawLedger(){
  const tbody=$("lvTrades");tbody.replaceChildren();
@@ -175,8 +213,8 @@ function drawLedger(){
 }
 async function refreshAll(){
  if(!loggedIn())throw Error("Verify the Phantom owner signature again.");
- const [statusResult,balanceResult,tradeResult]=await Promise.allSettled([
-   api("/status"),api("/wallet/owner-sol-balance"),api("/live/trades")
+ const [statusResult,balanceResult,tradeResult,scanResult]=await Promise.allSettled([
+   api("/status"),api("/wallet/owner-sol-balance"),api("/live/trades"),api("/live/scans")
  ]);
  if(statusResult.status!=="fulfilled")throw statusResult.reason;
  serverStatus=statusResult.value;
@@ -191,7 +229,8 @@ async function refreshAll(){
     tradeResult.value.liveTrading===false&&Array.isArray(tradeResult.value.trades))
      ledger=tradeResult.value;
  else ledger=null;
- draw();drawLedger();lastPoll=Date.now();
+ scan=scanResult.status==="fulfilled"&&scanResult.value.mode==="LIVE_MARKET_RESEARCH_ONLY"?scanResult.value:null;
+ draw();drawLedger();drawScan();lastPoll=Date.now();
 }
 $("lvConnect").addEventListener("click",async()=>{
  if(busy)return;busy=true;draw();
@@ -201,7 +240,7 @@ $("lvConnect").addEventListener("click",async()=>{
   const result=await provider.connect();
   const address=String(result?.publicKey||provider.publicKey||"");
   if(!validWallet(address))throw Error("Phantom did not provide a valid Solana wallet address");
-  ownerAddress=address;token="";expiresAt=0;serverStatus=null;ledger=null;solBalance=null;
+  ownerAddress=address;token="";expiresAt=0;serverStatus=null;ledger=null;scan=null;solBalance=null;
   setMsg("Connected to Phantom "+address+". Click Verify owner to authenticate the private trading server. No money moved.");
  }catch(e){setMsg("Phantom connection failed: "+String(e.message).slice(0,190));}
  finally{busy=false;draw();}
@@ -224,7 +263,7 @@ $("lvVerify").addEventListener("click",async()=>{
   await refreshAll();
   setMsg(serverStatus.message||"Owner verified. Start Live remains locked until a safe signer is ready.");
  }catch(e){
-  token="";expiresAt=0;serverStatus=null;ledger=null;
+  token="";expiresAt=0;serverStatus=null;ledger=null;scan=null;
   setMsg("Owner verification failed: "+String(e.message).slice(0,190));
  }finally{busy=false;draw();drawLedger();}
 });
@@ -232,6 +271,16 @@ $("lvRefresh").addEventListener("click",async()=>{
  if(busy)return;busy=true;draw();
  try{await refreshAll();setMsg(serverStatus?.message||"Live status checked");}
  catch(e){setMsg("Status unavailable: "+e.message);}
+ finally{busy=false;draw();}
+});
+$("lvScanRefresh").addEventListener("click",async()=>{
+ if(busy||!loggedIn())return;busy=true;draw();
+ try{
+   const result=await api("/live/scans");
+   if(result.mode!=="LIVE_MARKET_RESEARCH_ONLY")throw Error("Invalid scanner response");
+   scan=result;drawScan();
+   setMsg("Live market scanner status updated. No orders were placed.");
+ }catch(e){scan=null;drawScan();setMsg("Scanner unavailable: "+e.message);}
  finally{busy=false;draw();}
 });
 $("lvJournalRefresh").addEventListener("click",async()=>{
@@ -311,5 +360,5 @@ setInterval(async()=>{
  try{await refreshAll();}catch(e){setMsg("Live data refresh unavailable: "+e.message);}
  finally{busy=false;draw();}
 },35000);
-draw();drawLedger();
+draw();drawLedger();drawScan();
 })();
