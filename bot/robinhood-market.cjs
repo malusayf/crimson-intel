@@ -181,6 +181,31 @@ class RobinhoodMarket{
     notice:"DEX-listed tokens are unverified; tickers and liquidity are not a security audit."};
   });
  }
+ async token(rawAddress){
+  const addr=address(rawAddress);
+  if(!addr)throw Error("Invalid EVM token address");
+  const key=addr.toLowerCase();
+  return this.cached("rh-token-"+key,60000,300000,async()=>{
+   const [api,registry]=await Promise.all([
+    this.fetchJson(SOURCE_DEX+"/tokens/"+key+"/pools?include=base_token%2Cquote_token"),
+    this.registry().catch(()=>null)
+   ]);
+   if(!Array.isArray(api.data))throw Error("Robinhood Chain token pools unavailable");
+   const included=new Map((api.included||[]).map(x=>[x.id,x]));
+   const official=new Map((registry?.assets||[]).map(x=>[x.contract.toLowerCase(),x]));
+   const pools=api.data.map(p=>parsePool(p,included,official)).filter(p=>p&&
+     p.baseTokenAddress&&p.baseTokenAddress.toLowerCase()===key)
+     .sort((a,b)=>(b.liquidityUsd||0)-(a.liquidityUsd||0)).slice(0,20);
+   const issuer=official.get(key)||null;
+   return {mode:"READ_ONLY",chainId:RH_CHAIN,tokenAddress:addr,
+    issuerCheck:registry?issuer?"issuer-listed":"not-issuer-listed":"unavailable",
+    issuerListedStock:issuer?{symbol:issuer.symbol,name:issuer.name,contract:issuer.contract}:null,
+    pools,topPool:pools[0]||null,totalObservedPools:pools.length,
+    source:"GeckoTerminal Robinhood Chain token pools",
+    fetchedAt:new Date(this.clock()).toISOString(),
+    note:"Only pools with this address as the base token are shown so prices do not accidentally refer to the quote token."};
+  });
+ }
  async pool(rawAddress){
   const addr=address(rawAddress);
   if(!addr)throw Error("Invalid EVM pool address");
