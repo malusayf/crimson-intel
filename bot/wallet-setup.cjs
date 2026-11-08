@@ -51,8 +51,32 @@ async function main(){
   output.write("Public deposit address: "+fs.readFileSync(addressFile,"utf8"));
   return;
  }
+ if(command==="verify"){
+  if(!input.isTTY||!output.isTTY)throw Error("Run verification only in your local interactive terminal");
+  const record=JSON.parse(fs.readFileSync(keystore,"utf8"));
+  if(record.format!=="CRIMSON_BOT_WALLET_ENCRYPTED_V1")throw Error("Unexpected wallet format");
+  const pass=await hidden("Wallet passphrase (hidden): ");
+  const salt=Buffer.from(record.scrypt.salt,"base64");
+  const iv=Buffer.from(record.aesGcm.iv,"base64");
+  const tag=Buffer.from(record.aesGcm.tag,"base64");
+  const ciphertext=Buffer.from(record.ciphertext,"base64");
+  if(salt.length!==16||iv.length!==12||tag.length!==16||ciphertext.length!==32)
+    throw Error("Encrypted wallet appears corrupted");
+  const key=crypto.scryptSync(pass,salt,32,{N:16384,r:8,p:1,maxmem:64*1024*1024});
+  let seed;
+  try{
+   const cipher=crypto.createDecipheriv("aes-256-gcm",key,iv);
+   cipher.setAuthTag(tag);
+   seed=Buffer.concat([cipher.update(ciphertext),cipher.final()]);
+   const calculated=publicKeyFromSeed(seed);
+   if(calculated!==record.publicKey)throw Error("Wallet public key mismatch");
+   output.write("PASS: encrypted seed decrypts and matches public address: "+calculated+"\n");
+  }catch(e){throw Error("Wallet verification failed: wrong password or corrupted keystore");}
+  finally{key.fill(0);if(seed)seed.fill(0);}
+  return;
+ }
  if(command!=="create"){
-  output.write("Crimson local wallet: node bot/wallet-setup.cjs create | show-address\n");
+  output.write("Crimson local wallet: node bot/wallet-setup.cjs create | verify | show-address\n");
   return;
  }
  if(!input.isTTY||!output.isTTY)throw Error("Run locally in Terminal, not CI or chat");
