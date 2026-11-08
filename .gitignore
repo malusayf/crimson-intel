@@ -1,0 +1,15 @@
+# Private local bot state and operator controls — NEVER commit these.
+bot/.data/
+bot/.env
+bot/*.local.json
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key
+*.seed
+keypair*.json
+wallet*.json
+credentials*.json
+node_modules/
