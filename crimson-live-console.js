@@ -47,6 +47,7 @@ node.innerHTML=[
 '<div class="lv-tile"><div class="lv-kicker">RAILWAY SERVER</div><b id="lvServer">Not verified</b></div>',
 '<div class="lv-tile"><div class="lv-kicker">DEDICATED BOT WALLET</div><b id="lvBotWallet">Not configured</b></div>',
 '<div class="lv-tile"><div class="lv-kicker">ACTUAL SOL BALANCE IN PHANTOM</div><b id="lvBalance">—</b></div>',
+'<div class="lv-tile"><div class="lv-kicker">DEDICATED BOT SOL BALANCE</div><b id="lvBotBalance">—</b></div>',
 '<div class="lv-tile"><div class="lv-kicker">REAL BUY/SELL EXECUTION</div><b id="lvExecutor" class="lv-off">NOT READY</b></div>',
 '<div class="lv-tile"><div class="lv-kicker">FINALIZED TRANSACTIONS DOCUMENTED</div><b id="lvCount">—</b></div>',
 '</div>',
@@ -54,20 +55,22 @@ node.innerHTML=[
 '<button id="lvConnect" type="button">Connect Phantom</button>',
 '<button id="lvVerify" type="button" disabled>Verify owner</button>',
 '<button id="lvRefresh" type="button" disabled>Refresh live status</button>',
-'<button id="lvCopy" type="button" disabled>Copy public wallet address</button>',
+'<button id="lvCopy" type="button" disabled>Copy Phantom address</button>',
+'<button id="lvCopyBot" type="button" disabled>Copy bot deposit address</button>',
 '<button id="lvLogout" type="button">Disconnect</button>',
 '</div>',
 '<div class="lv-section"><h3>Live Trading Controls</h3>',
 '<div class="lv-actions"><button id="lvStart" type="button" disabled>Start Live · Locked</button>',
 '<button id="lvStop" type="button" disabled>Stop new trades</button>',
-'<button id="lvEmergency" type="button" disabled>Emergency halt</button></div>',
+'<button id="lvEmergency" type="button" disabled>Emergency halt</button>',
+'<button id="lvReconcile" type="button" disabled>Reconcile pending trade</button></div>',
 '<p id="lvStatus" class="lv-info" role="status">Connect Phantom and verify your wallet ownership to inspect the private server.</p></div>',
 '<div class="lv-section"><h3>Fund Bot From Phantom</h3>',
 '<p class="lv-sub">Choose an allocation from your existing SOL. The selected amount is only a preview; no funding or transaction authorization occurs here.</p>',
 '<div class="lv-amount"><label>Proposed amount (SOL)<input type="number" id="lvAllocate" min="0" step="0.000001" placeholder="0.1"></label>',
 '<button id="lvPreview" type="button" disabled>Preview allocation</button>',
-'<button id="lvFund" type="button" disabled>Fund dedicated wallet · Locked</button></div>',
-'<p class="lv-sub" id="lvAllocation">Dedicated trading wallet and recovery must be verified before funds can be transferred.</p></div>',
+'<button id="lvFund" type="button" disabled>Fund manually in Phantom</button></div>',
+'<p class="lv-sub" id="lvAllocation">Once the dedicated wallet and its recovery have been verified, copy its deposit address and send a small amount of SOL using Phantom’s normal Send screen. No private keys or seed phrases belong on this website.</p></div>',
 '<div class="lv-section"><div class="lv-top"><div><h3>Live Solana Market Scanner</h3>',
 '<p class="lv-sub">Observes real Solana market data and security screens. It does not simulate trades or move funds.</p></div>',
 '<button id="lvScanRefresh" type="button" disabled>Refresh scan</button></div>',
@@ -94,7 +97,7 @@ node.innerHTML=[
 const existing=document.getElementById("ccCommandCenter");
 if(existing)existing.insertAdjacentElement("afterend",node);else main.append(node);
 let provider=null,ownerAddress="",serverStatus=null,token="",expiresAt=0,
-  solBalance=null,ledger=null,scan=null,busy=false,lastPoll=0;
+  solBalance=null,botBalance=null,ledger=null,scan=null,busy=false,lastPoll=0;
 const shorten=x=>x?x.slice(0,6)+"…"+x.slice(-6):"—";
 const validWallet=x=>typeof x==="string"&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(x);
 const loggedIn=()=>!!token&&Date.now()<expiresAt&&validWallet(ownerAddress);
@@ -120,7 +123,7 @@ async function api(path,method="GET",body=null,auth=true){
  }finally{clearTimeout(timeout);}
 }
 function reset(reason){
-  token="";expiresAt=0;ownerAddress="";serverStatus=null;ledger=null;solBalance=null;scan=null;provider=null;
+  token="";expiresAt=0;ownerAddress="";serverStatus=null;ledger=null;solBalance=null;botBalance=null;scan=null;provider=null;
   $("lvAllocation").textContent="Funding authorization reset; no funds moved.";
   setMsg(reason||"Disconnected. No live trading authorization.");
   draw();drawLedger();drawScan();
@@ -136,10 +139,11 @@ function draw(){
  $("lvServer").textContent=loggedIn()?"OWNER VERIFIED":"NOT VERIFIED";
  $("lvBotWallet").textContent=serverStatus?.privateBotWallet?
    shorten(serverStatus.privateBotWallet):"Not configured";
+ $("lvBotBalance").textContent=Number.isFinite(botBalance)?botBalance.toLocaleString("en-US",{maximumFractionDigits:9})+" SOL":"—";
  $("lvBalance").textContent=Number.isFinite(solBalance)?
    solBalance.toLocaleString("en-US",{maximumFractionDigits:9})+" SOL":"—";
  const canTrade=ready();
- const active=canTrade&&serverStatus?.liveTrading===true;
+ const active=serverStatus?.liveTrading===true;
  $("lvExecutor").textContent=canTrade?"VERIFIED READY":"NOT READY";
  $("lvExecutor").className=canTrade?"lv-on":"lv-off";
  $("lvMode").textContent=active?"LIVE RUNNING":"LIVE DISABLED";
@@ -151,13 +155,15 @@ function draw(){
  $("lvJournalRefresh").disabled=busy||!loggedIn();
  $("lvScanRefresh").disabled=busy||!loggedIn();
  $("lvCopy").disabled=busy||!validWallet(ownerAddress);
+ $("lvCopyBot").disabled=busy||!loggedIn()||!serverStatus?.walletReady||!validWallet(serverStatus.privateBotWallet);
  $("lvPreview").disabled=busy||!loggedIn()||!Number.isFinite(solBalance);
  $("lvExport").disabled=busy||!loggedIn()||!(ledger?.entries>0);
  $("lvStart").disabled=busy||!canTrade||active;
  $("lvStart").textContent=canTrade?"Start Live":"Start Live · Locked";
  $("lvStop").disabled=busy||!active;
- $("lvEmergency").disabled=busy||!active;
- $("lvFund").disabled=true; // No unverified destination or signing workflow.
+ $("lvEmergency").disabled=busy||!(active||serverStatus?.pendingIntent);
+ $("lvReconcile").disabled=busy||!loggedIn()||!serverStatus?.pendingIntent;
+ $("lvFund").disabled=true; // Funding stays a manual Phantom transfer; do not auto-sign from the public website.
 }
 function drawScan(){
  $("lvScanStatus").textContent=!scan?"NOT CHECKED":
@@ -213,8 +219,8 @@ function drawLedger(){
 }
 async function refreshAll(){
  if(!loggedIn())throw Error("Verify the Phantom owner signature again.");
- const [statusResult,balanceResult,tradeResult,scanResult]=await Promise.allSettled([
-   api("/status"),api("/wallet/owner-sol-balance"),api("/live/trades"),api("/live/scans")
+ const [statusResult,balanceResult,tradeResult,scanResult,botBalanceResult]=await Promise.allSettled([
+   api("/status"),api("/wallet/owner-sol-balance"),api("/live/trades"),api("/live/scans"),api("/wallet/bot-sol-balance")
  ]);
  if(statusResult.status!=="fulfilled")throw statusResult.reason;
  serverStatus=statusResult.value;
@@ -225,8 +231,11 @@ async function refreshAll(){
     Number.isFinite(Number(balanceResult.value.sol)))
     solBalance=Number(balanceResult.value.sol);
  else solBalance=null;
+ botBalance=botBalanceResult.status==="fulfilled"&&botBalanceResult.value.wallet===serverStatus.privateBotWallet&&
+  botBalanceResult.value.network==="solana-mainnet"&&Number.isFinite(Number(botBalanceResult.value.sol))?
+  Number(botBalanceResult.value.sol):null;
  if(tradeResult.status==="fulfilled"&&tradeResult.value.mode==="LIVE_ONLY"&&
-    tradeResult.value.liveTrading===false&&Array.isArray(tradeResult.value.trades))
+    typeof tradeResult.value.liveTrading==="boolean"&&Array.isArray(tradeResult.value.trades))
      ledger=tradeResult.value;
  else ledger=null;
  scan=scanResult.status==="fulfilled"&&scanResult.value.mode==="LIVE_MARKET_RESEARCH_ONLY"?scanResult.value:null;
@@ -307,8 +316,23 @@ $("lvExport").addEventListener("click",async()=>{
 });
 $("lvCopy").addEventListener("click",async()=>{
  if(!ownerAddress)return;
- try{await navigator.clipboard.writeText(ownerAddress);setMsg("Public wallet address copied. Never share a recovery phrase.");}
+ try{await navigator.clipboard.writeText(ownerAddress);setMsg("Phantom public wallet address copied. Never share a recovery phrase.");}
  catch(e){setMsg("Your PUBLIC Phantom address: "+ownerAddress);}
+});
+$("lvCopyBot").addEventListener("click",async()=>{
+ const wallet=serverStatus?.privateBotWallet;
+ if(!serverStatus?.walletReady||!validWallet(wallet))return;
+ try{await navigator.clipboard.writeText(wallet);
+   setMsg("Dedicated bot deposit address copied. Verify this address in your trusted wallet setup before sending funds.");}
+ catch(e){setMsg("BOT PUBLIC DEPOSIT ADDRESS: "+wallet);}
+});
+$("lvReconcile").addEventListener("click",async()=>{
+ if(busy||!loggedIn()||!serverStatus?.pendingIntent)return;
+ busy=true;draw();
+ try{const result=await api("/live/reconcile","POST",{});
+   await refreshAll();setMsg(result.note||"Trade reconciled. Check live ledger before restarting.");}
+ catch(e){setMsg("Pending trade remains locked: "+e.message);}
+ finally{busy=false;draw();}
 });
 $("lvPreview").addEventListener("click",()=>{
  const raw=$("lvAllocate").value.trim(),amount=Number(raw);
@@ -319,12 +343,15 @@ $("lvPreview").addEventListener("click",()=>{
   return;
  }
  $("lvAllocation").textContent=
-   "Preview: allocate "+amount.toFixed(6)+" SOL, leaving approximately "+
-   (solBalance-amount).toFixed(6)+" SOL in Phantom before fees. No transfer is prepared; the recipient bot wallet and secure signer are not yet verified.";
+   "Preview: "+amount.toFixed(6)+" SOL from Phantom, leaving approx. "+
+   (solBalance-amount).toFixed(6)+" SOL before fees. "+
+   (serverStatus?.walletReady&&serverStatus?.recoveryVerified?
+      "Use Copy bot deposit address, verify the destination independently, then use Phantom Send. No transfer is initiated here.":
+      "Do NOT send until the dedicated wallet and its recovery are configured and verified.");
 });
 $("lvStart").addEventListener("click",async()=>{
  if(busy||!ready()||serverStatus?.liveTrading===true)return;
- if(!window.confirm("Start REAL automated trading using your funded dedicated bot wallet? Losses are possible."))return;
+ if(!window.confirm("START REAL automated Solana trades with your dedicated bot wallet? These are irreversible and may lose the entire funded balance. Stops and exits are not guaranteed. Confirm to start."))return;
  busy=true;draw();
  try{
   const value=await api("/start","POST",{confirmed:true});
