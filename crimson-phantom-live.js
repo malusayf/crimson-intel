@@ -177,6 +177,7 @@ async function refreshPaper(){
  if(result.mode!=="PAPER_ONLY"||result.liveTrading!==false)
    throw Error("Unexpected backend response: paper mode safety check failed.");
  paper=result;paperLastUpdate=Date.now();displayPaper();update();
+ window.dispatchEvent(new CustomEvent("crimson:paper-status",{detail:paper}));
 }
 async function operatePaper(command){
  if(busy||!token)return;
@@ -188,6 +189,7 @@ async function operatePaper(command){
    if(result.mode!=="PAPER_ONLY"||result.liveTrading!==false)
      throw Error("Refused unexpected response");
    paper=result;paperLastUpdate=Date.now();displayPaper();
+   window.dispatchEvent(new CustomEvent("crimson:paper-status",{detail:paper}));
    status("Paper command confirmed: "+(result.message||command)+
      " No Phantom SOL transferred or traded.");
  }catch(e){status("Paper command failed: "+e.message);paper=null;displayPaper();}
