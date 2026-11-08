@@ -17,7 +17,8 @@
     "wallet:verify": "node wallet-setup.cjs verify",
     "wallet:address": "node wallet-setup.cjs show-address",
     "test:scanner": "node live-scanner-test.cjs",
-    "test:live": "node live-controller-test.cjs"
+    "test:live": "node live-controller-test.cjs",
+    "wallet:railway-secret": "node wallet-setup.cjs railway-secret"
   },
   "license": "UNLICENSED",
   "dependencies": {
