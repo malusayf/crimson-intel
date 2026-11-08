@@ -206,8 +206,15 @@ class LiveController{
  }
  async reconcile(){
   if(!this.state?.pending)return {resolved:true,note:'No pending transaction'};
+  if(this.running||this.busy)return {resolved:false,note:'Stop the worker and wait for any in-flight API call before reconciling'};
   const pending=this.state.pending;
-  if(!pending.signature)return {resolved:false,note:'Intent has no signed signature; requires manual review'};
+  // A durable phase marker proves the app never reached the network-submit call.
+  // Only those specifically marked local-only are safely cancellable.
+  if(pending.phase==='PREPARING'||pending.phase==='SIGNED_NOT_SUBMITTED'){
+   this.state.pending=null;this.save();
+   return {resolved:true,note:'Cancelled local-only unsent order intent; no transaction was submitted'};
+  }
+  if(!pending.signature)return {resolved:false,note:'Ambiguous legacy intent; requires manual review'};
   let entry=this.journal.read().transactions.find(t=>t.signature===pending.signature);
   if(!entry){
    try{const x=await this.journal.recordFinalized({signature:pending.signature,
@@ -218,13 +225,15 @@ class LiveController{
   this.apply(entry,pending);return {resolved:true,note:'Finalized transaction reconciled'};
  }
  async swap({mint,side,raw,plan=null,stage=3}){
+  if(!this.running)throw Error('Live worker is not running — refusing to submit');
   if(this.state.pending)throw Error('Unresolved intent blocks trades');
   const wallet=this.env.BOT_DEDICATED_WALLET_ADDRESS;
   const input=side==='BUY'?SOL:mint,output=side==='BUY'?mint:SOL;
   this.state.pending={id:'live-'+crypto.randomUUID(),wallet,mint,side,amount:String(raw),
-   plan,stage,signature:null,createdAt:new Date().toISOString()};this.save();
+   plan,stage,signature:null,phase:'PREPARING',createdAt:new Date().toISOString()};this.save();
   try{
    const order=await this.order(input,output,String(raw));
+   if(!this.running)throw Error('Live operator stopped before transaction signing');
    const {VersionedTransaction}=require('@solana/web3.js');
    const tx=VersionedTransaction.deserialize(Buffer.from(order.transaction,'base64'));
    const signer=this.ensureSigner();
@@ -237,7 +246,11 @@ class LiveController{
    const signature=b58(tx.signatures[signerIndex]);
    if(!signature||signature.length<80)throw Error('Signature missing');
    this.state.pending.signature=signature;
-   this.state.pending.requestId=order.requestId;this.save();
+   this.state.pending.requestId=order.requestId;
+   this.state.pending.phase='SIGNED_NOT_SUBMITTED';this.save();
+   if(!this.running)throw Error('Live operator stopped before transaction submission');
+   this.state.pending.phase='SUBMITTING';this.save();
+   // Once SUBMITTING is durable, an ambiguous network result MUST remain locked.
    const result=await this.executeSigned({signedTransaction:Buffer.from(tx.serialize()).toString('base64'),requestId:order.requestId});
    if(result.signature!==signature||result.status!=='Success')throw Error('Execution not confirmed; reconcile before resuming');
    for(let i=0;i<12;i++){
@@ -248,7 +261,8 @@ class LiveController{
   }catch(e){
    // Only a pre-signature failure can be safely cleared automatically;
    // once a signature exists it MUST remain locked until chain reconciliation.
-   if(this.state.pending&&!this.state.pending.signature)this.state.pending=null;
+   if(this.state.pending&&['PREPARING','SIGNED_NOT_SUBMITTED'].includes(this.state.pending.phase))
+     this.state.pending=null;
    this.running=false;this.lastError=String(e.message||e).slice(0,180);
    this.state.lastError=this.lastError;this.save();this.log('[Crimson LIVE HALT] '+this.lastError);
    throw e;
