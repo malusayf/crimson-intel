@@ -218,6 +218,18 @@
         " · TP2 "+toPrice(plan.tp2)+" · TP3 "+toPrice(plan.tp3):
         "Enter position details; confirmed 5m levels are required.");
     }
+    // Publish read-only position/zone snapshots so Guardian can LOCK a plan;
+    // no code in the original position calculator needs to change thereafter.
+    window.CRIMSON_LATEST_POSITION = {
+      mint:current?.mint||null, pairAddress:current?.pair?.pairAddress||null,
+      amount:pos?.amount??null, entry:pos?.entry??null, qty:pos?.qty??null,
+      market:pos?.market??null, plan:plan?{...plan}:null,
+      decision:{...decision}, updatedAt:Date.now(),
+      candlesVerified:!!candles
+    };
+    window.dispatchEvent(new CustomEvent("crimson:position-plan", {
+      detail:window.CRIMSON_LATEST_POSITION
+    }));
   }
   const entryChanged=()=>render();
   entryInput.addEventListener("input",entryChanged);
