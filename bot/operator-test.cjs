@@ -50,6 +50,7 @@ async function test(){
    const unauthorized=await req("/auth/challenge","POST",{address:"So11111111111111111111111111111111111111112"});
    assert.equal(unauthorized.status,403);
    const noSession=await req("/status");assert.equal(noSession.status,401);
+   const noPortfolio=await req("/live/portfolio");assert.equal(noPortfolio.status,401,"Portfolio requires owner authentication");
    const noJournalSession=await req("/live/trades");assert.equal(noJournalSession.status,401);
    const noJournalCsv=await req("/live/trades.csv");assert.equal(noJournalCsv.status,401);
    const noStart=await req("/start","POST",{});assert.equal(noStart.status,401);
@@ -69,6 +70,12 @@ async function test(){
    const verified=await req("/status","GET",null,ownerSession);
    assert.equal(verified.status,200);
    assert.equal(verified.data.walletReady,false);
+   const portfolio=await req("/live/portfolio","GET",null,ownerSession);
+   assert.equal(portfolio.status,200);
+   assert.equal(portfolio.data.mode,"LIVE_ONLY");
+   assert.equal(portfolio.data.liveTrading,false);
+   assert.deepEqual(portfolio.data.positions,[]);
+   assert.equal(portfolio.data.pending,null);
    const liveTrades=await req("/live/trades","GET",null,ownerSession);
    assert.equal(liveTrades.status,200);
    assert.equal(liveTrades.data.mode,"LIVE_ONLY");
