@@ -60,6 +60,7 @@ function normalizeStock(mint,stock,quote,stale){
   issuerListed:true,issuerLabel:stock.symbol,securityVerified:false,
   marketUnavailable:true,stockToken:true,quoteReferenceOnly:true,
   isTradingHalt:quote?.quote?.isTradingHalt===true,
+  issuerStatus:stock.status||"unknown",
   pendingMultiplier:stock.pendingMultiplier||null,
   currentMultiplier:stock.multiplier||null,
   underlyingBidUsd:quote?.quote?.underlyingBidUsd??null,
