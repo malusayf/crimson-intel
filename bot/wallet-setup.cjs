@@ -5,6 +5,7 @@
 const fs=require("node:fs");
 const path=require("node:path");
 const crypto=require("node:crypto");
+const {spawnSync}=require("node:child_process");
 const input=process.stdin,output=process.stdout;
 const ABC="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const directory=path.resolve(process.env.BOT_DATA_DIR||path.join(__dirname,".data"));
@@ -51,7 +52,7 @@ async function main(){
   output.write("Public deposit address: "+fs.readFileSync(addressFile,"utf8"));
   return;
  }
- if(command==="verify"){
+ if(command==="verify"||command==="railway-secret"){
   if(!input.isTTY||!output.isTTY)throw Error("Run verification only in your local interactive terminal");
   const record=JSON.parse(fs.readFileSync(keystore,"utf8"));
   if(record.format!=="CRIMSON_BOT_WALLET_ENCRYPTED_V1")throw Error("Unexpected wallet format");
@@ -70,13 +71,21 @@ async function main(){
    seed=Buffer.concat([cipher.update(ciphertext),cipher.final()]);
    const calculated=publicKeyFromSeed(seed);
    if(calculated!==record.publicKey)throw Error("Wallet public key mismatch");
-   output.write("PASS: encrypted seed decrypts and matches public address: "+calculated+"\n");
+   if(command==="railway-secret"){
+    if(process.platform!=="darwin")throw Error("Secure clipboard setup currently supports macOS Terminal only");
+    output.write("Confirmed dedicated wallet address: "+calculated+"\n");
+    const clipboard=spawnSync("pbcopy",[],{input:seed.toString("base64"),timeout:2000});
+    if(clipboard.status!==0)throw Error("macOS secure clipboard unavailable");
+    output.write("Copied 32-byte dedicated wallet seed to macOS clipboard.\n"+
+      "Paste directly into Railway's BOT_SIGNER_SEED_BASE64 secret variable.\n"+
+      "Never paste in ChatGPT, GitHub, a website, or a screenshot. Clear clipboard after use.\n");
+   }else output.write("PASS: encrypted seed decrypts and matches public address: "+calculated+"\n");
   }catch(e){throw Error("Wallet verification failed: wrong password or corrupted keystore");}
   finally{key.fill(0);if(seed)seed.fill(0);}
   return;
  }
  if(command!=="create"){
-  output.write("Crimson local wallet: node bot/wallet-setup.cjs create | verify | show-address\n");
+  output.write("Crimson local wallet: node bot/wallet-setup.cjs create | verify | show-address | railway-secret\n");
   return;
  }
  if(!input.isTTY||!output.isTTY)throw Error("Run locally in Terminal, not CI or chat");
