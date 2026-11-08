@@ -34,6 +34,7 @@ async function run(){
   else if(String(url).endsWith("/prices/AAPL"))result=api.quote;
   else if(String(url).includes("trending_pools"))result=api.dex;
   else if(String(url).includes("new_pools"))result=api.dex;
+  else if(String(url).includes("/tokens/")&&String(url).includes("/pools"))result={data:api.dex.data,included:api.dex.included};
   else if(String(url).includes("/pools/"))result={data:api.dex.data[0],included:api.dex.included};
   else throw Error("Unexpected network destination");
   return {ok:true,text:async()=>JSON.stringify(result)};
@@ -54,6 +55,10 @@ async function run(){
  assert.equal(pools.pools[0].liquidityUsd,20000);
  const detail=await client.pool(poolAddress);
  assert.equal(detail.pool.poolAddress,poolAddress);
+ const tokenView=await client.token(contract);
+ assert.equal(tokenView.topPool.poolAddress,poolAddress);
+ assert.equal(tokenView.issuerCheck,"issuer-listed");
+ assert.equal(tokenView.topPool.priceUsd,401);
  assert.equal(detail.mode,"READ_ONLY");
  api.dex.data[0].relationships.base_token.data.id="robinhood_"+imposter.toLowerCase();
  now+=61000;const other=await client.pools("trending");
@@ -68,6 +73,7 @@ async function run(){
  assert.throws(()=>parseStock({tokenSymbol:"BAD",deployments:[{contractAddress:"no",chainId:4663}]}).contract);
  await assert.rejects(()=>client.quote("UNKNOWN"),/Not listed/);
  await assert.rejects(()=>client.pool("https://evil.com"),/Invalid EVM pool/);
+ await assert.rejects(()=>client.token("javascript:bad"),/Invalid EVM token/);
  console.log("PASS robinhood: official contract identity, per-token multiplier, real pool stats, caching, stale warnings, no arbitrary URL");
 }
 run().catch(e=>{console.error(e);process.exitCode=1;});
