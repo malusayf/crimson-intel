@@ -6,6 +6,7 @@
 - **Phantom authentication:** Owner-only Ed25519 signed message with one-time challenge.
 - **Existing Phantom SOL:** Read-only balance view and allocation preview; no automatic spending permission granted.
 - **Journal:** Persistent Railway volume at `/data`; `live-trades-v1.json` records **only finalized dedicated-bot-wallet transactions** from a future trusted executor.
+- **Live market scanner:** Real Solana market discovery with public pool, liquidity, volume, RugCheck and completed-candle observations; no paper trades and no actual orders. Authenticated route `GET /live/scans`. Controlled by `BOT_LIVE_SCANNER_ENABLED=true`.
 - **No paper scanner:** The former paper process and paper API were stopped; its previous `paper.json` remains archived separately in the persistent volume and is not imported into live results.
 - **Real-money execution:** **NOT BUILT OR ENABLED.** `/start` returns 409 until signer, Jupiter execution, reconciler and verified risk controls are complete.
 - **Funds moved by Crimson:** None.
