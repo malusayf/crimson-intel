@@ -92,3 +92,40 @@ A Github Pages page **cannot** safely sign transactions or continuously trade wh
 `node bot/test.cjs` provides no-network unit/integration tests for the market filter, failed-security handling, completed-candle entry, modeled buy, TP1 partial sale, pause, kill and TP3 exit. These **do not** substitute for testing exchange quotes, live pool conditions, order confirmation, or deployment resilience.
 
 **Do not fund this code or treat its simulated returns as proof of profitable strategy performance.**
+
+
+## Phantom → Connect → Start Live integration (2026-11-07)
+
+**Private operator authentication has been added; real-money execution remains explicitly locked and unimplemented.**
+
+The new frontend `crimson-phantom-live.js` (in AutoTrader tab) can:
+- Connect your Phantom extension to read the public wallet address only.
+- Contact an optional private operator API URL and ask Phantom to **sign a login message** (not a transaction).
+- Authenticate that signature against `BOT_OWNER_PUBLIC_KEY` on the server, using an expiring one-time nonce and an in-memory owner session.
+- Display private backend status, isolated bot wallet configuration and live execution readiness.
+- Present Start Live / Stop / Emergency Stop buttons; **Start Live stays disabled unless a private backend explicitly reports a verified signer/executor and wallet ready**.
+
+The new `bot/operator-server.cjs` is only a **control-plane scaffold**. It does not produce signed swaps. Its `/start` endpoint always returns **409 Not Configured**. Neither the UI nor server asks for your Phantom seed phrase.
+
+### Operator authentication testing (localhost)
+
+1. Configure only the *public* owner Phantom address in the **private server environment** as `BOT_OWNER_PUBLIC_KEY` (not a seed phrase).
+2. Use `BOT_FRONTEND_ORIGIN=https://malusayf.github.io` and run `node bot/operator-server.cjs` on an authorized private computer.
+3. Run `node bot/operator-test.cjs` for fail-closed/API checks.
+4. In Crimson Intel AutoTrader, connect Phantom and set your **HTTPS operator server origin**. The frontend can authenticate with a signed message. The private server must be correctly hosted behind HTTPS and must not expose raw insecure HTTP to the Internet.
+5. The currently provided localhost-only `http://127.0.0.1:8788` server is for developer testing. A public GitHub Pages page may be blocked from accessing localhost due to browser private-network restrictions. An authenticated HTTPS private endpoint with carefully restricted CORS, network security, CSRF protections and rate controls is needed for cross-device production use.
+
+### Requirements before enabling unattended live trades
+
+- User-approved configuration for **a newly generated, dedicated, limited-funds bot wallet**; separate from the user's everyday Phantom wallet. Phantom is the ownership/funding account; normal browser wallet connections cannot automatically sign every unattended swap.
+- A trusted signer in a secure private environment; access controlled with strong owner authentication, no private keys sent to the browser, website, repository or ordinary logs.
+- Build a supported, currently verified Jupiter Swap v2 quote/order/execution adapter and on-chain confirmation handling, including route constraints, quote expiration, exact in/out amounts, fees, token transfer rules, retries, token decimal validation, transaction simulation, signer authorization and idempotency.
+- Persistent durable trade state and reconciliation; an uncertain submitted swap must never be retried as a separate new swap until chain status is reconciled.
+- Real account-value risk limits, daily maximum loss, per-trade and aggregate exposure limits, fee and slippage limits, and emergency-stop controls that **stop new entries but consider existing open risk**. A fully destructive kill may prevent protective exits.
+- Robust server infrastructure, independent monitoring, operator alerts, audited signer and forward-testing.
+- **Start Live is intentionally disabled until those are complete**. A UI switch should never claim to authorize use of a public Phantom wallet's funds silently.
+
+### Security warning
+
+Do not use a primary Phantom wallet secret key for unattended trading. Never provide seed phrases, wallet private keys or OTP/recovery data in chat. A dedicated bot wallet funded with a deliberately small amount reduces (but does not eliminate) the loss from a compromised signer or bot failure.
+
