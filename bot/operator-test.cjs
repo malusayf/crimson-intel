@@ -50,8 +50,8 @@ async function test(){
    const unauthorized=await req("/auth/challenge","POST",{address:"So11111111111111111111111111111111111111112"});
    assert.equal(unauthorized.status,403);
    const noSession=await req("/status");assert.equal(noSession.status,401);
-   const noPaperSession=await req("/paper/status");assert.equal(noPaperSession.status,401);
-   const noPaperControl=await req("/paper/pause","POST",{});assert.equal(noPaperControl.status,401);
+   const noJournalSession=await req("/live/trades");assert.equal(noJournalSession.status,401);
+   const noJournalCsv=await req("/live/trades.csv");assert.equal(noJournalCsv.status,401);
    const noStart=await req("/start","POST",{});assert.equal(noStart.status,401);
    const challenge=await req("/auth/challenge","POST",{address});
    assert.equal(challenge.status,200);
@@ -69,14 +69,21 @@ async function test(){
    const verified=await req("/status","GET",null,ownerSession);
    assert.equal(verified.status,200);
    assert.equal(verified.data.walletReady,false);
-   const paper=await req("/paper/status","GET",null,ownerSession);
-   assert.equal(paper.status,200);
-   assert.equal(paper.data.mode,"PAPER_ONLY");
-   assert.equal(paper.data.liveTrading,false);
-   if(process.env.BOT_AUTORUN_PAPER!=="true"){
-     const notConfigured=await req("/paper/pause","POST",{},ownerSession);
-     assert.equal(notConfigured.status,503,"Paper controls must refuse action without deployed runner");
-   }
+   const liveTrades=await req("/live/trades","GET",null,ownerSession);
+   assert.equal(liveTrades.status,200);
+   assert.equal(liveTrades.data.mode,"LIVE_ONLY");
+   assert.equal(liveTrades.data.entries,0);
+   assert.equal(liveTrades.data.liveTrading,false);
+   const legacyPaper=await req("/paper/status","GET",null,ownerSession);
+   assert.equal(legacyPaper.status,404,"Paper API must be removed");
+   const legacyCommand=await req("/paper/pause","POST",{},ownerSession);
+   assert.equal(legacyCommand.status,404,"Paper commands must no longer exist");
+   const csv=await fetch("http://127.0.0.1:"+port+"/live/trades.csv",{
+     headers:{Origin:process.env.BOT_FRONTEND_ORIGIN||"https://malusayf.github.io",
+       Authorization:"Bearer "+ownerSession}
+   });
+   assert.equal(csv.status,200);
+   assert((await csv.text()).includes("priceSolPerToken"));
    const publicBalance=await req("/wallet/owner-sol-balance");
    assert.equal(publicBalance.status,401,"unsigned account cannot view balance");
    const solBalance=await req("/wallet/owner-sol-balance","GET",null,ownerSession);
@@ -88,7 +95,7 @@ async function test(){
    const wrongOrigin=await fetch("http://127.0.0.1:"+port+"/status",{
      headers:{Origin:"https://attacker.example"}});
    assert.equal(wrongOrigin.status,403);
-   console.log("PASS operator: owner Ed25519 login, nonce replay refusal, SOL balance owner-only, start blocked, hostile origin rejected");
+   console.log("PASS operator: signed owner login, live-only journal and CSV owner auth, paper APIs removed, live start locked, hostile origin blocked");
  }finally{globalThis.fetch=actualFetch;await new Promise(resolve=>server.close(resolve));}
 }
 test().catch(e=>{console.error(e);process.exitCode=1});
