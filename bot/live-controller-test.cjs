@@ -20,6 +20,18 @@ async function run(){
   assert.equal(empty.mode,"LIVE_ONLY");
   assert.equal(empty.positions.length,0);
   assert.equal(empty.liveTrading,false);
+  // A user's Stop must prevent submission even if a quote resolves afterward.
+  let finishQuote,submissions=0;
+  control.order=()=>new Promise(resolve=>{finishQuote=resolve;});
+  control.executeSigned=async()=>{submissions++;return {status:"Success"};};
+  control.running=true;
+  const attempted=control.swap({mint:"4".repeat(44),side:"BUY",raw:"5000000",
+   plan:{entryReference:1,stop:0.99,tp1:1.01,tp2:1.02,tp3:1.03}});
+  control.stop();
+  finishQuote({});
+  await assert.rejects(attempted,/stopped before transaction signing/);
+  assert.equal(submissions,0,"Stop must prevent a spend");
+  assert.equal(control.state.pending,null,"Pre-submission intent must be safely cleared");
   const file=path.join(directory,"live-controller-v1.json");
   const state=loadState(file);
   assert.equal(state.pending,null);
