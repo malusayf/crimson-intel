@@ -201,6 +201,10 @@ const server=http.createServer(async(req,res)=>{
       actualOrders:0,liveExecutionReady:false,everExecutedRealTrade:false,
       candidates:[],note:"Live scanner is not enabled on this server."});
   }
+  if(url.pathname==="/live/portfolio"&&req.method==="GET"){
+    try{return send(res,200,await liveController.portfolio());}
+    catch(e){return send(res,503,{error:"Verified portfolio status unavailable; refusing to invent balances."});}
+  }
   if(url.pathname==="/live/trades"&&req.method==="GET"){
     try{
       return send(res,200,{...liveJournal.summary(),
