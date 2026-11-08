@@ -2,26 +2,20 @@
   "name": "crimson-intel-autotrader",
   "private": true,
   "version": "0.1.0",
-  "description": "Autonomous Solana paper trader foundation for Crimson Intel; live execution deliberately unavailable",
+  "description": "Owner-authenticated Crimson AutoTrader live-only control API and verified on-chain trade journal; execution disabled until secure signer exists",
   "type": "commonjs",
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
-    "test": "node test.cjs",
-    "once": "node main.cjs once",
-    "start": "node main.cjs run",
-    "status": "node main.cjs status",
-    "pause": "node main.cjs pause",
-    "resume": "node main.cjs resume",
-    "kill": "node main.cjs kill",
-    "clear-kill": "node main.cjs clear-kill",
-    "operator": "node operator-server.cjs",
+    "start": "node operator-server.cjs",
+    "test": "node live-journal-test.cjs && node operator-test.cjs && node quote-test.cjs",
+    "test:journal": "node live-journal-test.cjs",
     "test:operator": "node operator-test.cjs",
-    "wallet:create": "node wallet-setup.cjs create",
-    "wallet:address": "node wallet-setup.cjs show-address",
     "test:quote": "node quote-test.cjs",
-    "wallet:verify": "node wallet-setup.cjs verify"
+    "wallet:create": "node wallet-setup.cjs create",
+    "wallet:verify": "node wallet-setup.cjs verify",
+    "wallet:address": "node wallet-setup.cjs show-address"
   },
   "license": "UNLICENSED"
 }
