@@ -26,20 +26,30 @@
  '<p class="ca-small">Designed to find candidate Solana tokens, apply strict risk and candle-confirmation gates, model buys, manage TP1–TP3 and SL, and maintain an execution journal. All wallet transactions are currently disabled.</p>',
  '<div class="ca-grid">',
  '<div class="ca-tile"><div class="label">AUTOMATED STRATEGY SOURCE</div><div class="ca-state ca-green">INSTALLED</div><p class="ca-small">Market filters, simulated entries, risk limits, partial exits, and tests in GitHub.</p></div>',
- '<div class="ca-tile"><div class="label">PAPER ENGINE DEPLOYMENT</div><div class="ca-state ca-yellow">NOT CONNECTED</div><p class="ca-small">GitHub Pages cannot run the Node trading process. Run it locally or deploy it to a secure always-on server.</p></div>',
+ '<div class="ca-tile"><div class="label">AUTONOMOUS PAPER SCANNER</div><div id="caPaperDeployment" class="ca-state ca-yellow">VERIFYING</div><p id="caPaperDescription" class="ca-small">The scanner runs privately on Railway when the backend reports a fresh journal update. Verify your Phantom owner wallet below to load its live status.</p></div>',
  '<div class="ca-tile"><div class="label">AUTONOMOUS LIVE TRADING</div><div class="ca-state ca-red">DISABLED</div><p class="ca-small">No bot wallet, live signer, swap executor, or verified trade confirmations are connected.</p></div>',
  '</div>',
- '<h3>Run the paper bot on your MacBook</h3>',
- '<p class="ca-small">Requires Node.js 20+ and a local clone of your Crimson Intel repository. From the repository folder, use:</p>',
+ '<h3>Cloud AutoTrader · Railway</h3>',
+ '<p class="ca-small">The deployed cloud scanner needs no open MacBook or terminal. You can also test the same logic locally with:</p>',
  '<code>node bot/test.cjs\nnode bot/main.cjs run</code>',
- '<p class="ca-small">Then open <strong>http://127.0.0.1:8787</strong> on that computer. The command line can pause new entries with <strong>node bot/main.cjs pause</strong> or block modeled trades with <strong>node bot/main.cjs kill</strong>.</p>',
+ '<p class="ca-small">For Railway paper monitoring and emergency controls, use the secure Phantom Owner Connection panel below. The local-only terminal option remains available for development.</p>',
  '<div class="ca-links">',
  '<a href="https://github.com/malusayf/crimson-intel/tree/main/bot" target="_blank" rel="noopener noreferrer">View AutoTrader code ↗</a>',
  '<a href="https://github.com/malusayf/crimson-intel/blob/main/bot/README.md" target="_blank" rel="noopener noreferrer">Setup and risk guide ↗</a>',
  '</div>',
- '<div class="ca-warning"><strong>Not an active trading service.</strong> Paper fills are hypothetical DEX snapshot prices with modeled slippage; they are not actual executable swap quotes. Live execution requires a dedicated bot wallet, private server, secure signing, complete transaction confirmation, and deployment/forward testing. Never enter seed phrases or private keys into this public website.</div>'
+ '<div class="ca-warning"><strong>Cloud scanner is PAPER ONLY.</strong> Paper fills are hypothetical DEX snapshot prices with modeled slippage; they are not executable swap quotes. Live execution requires a dedicated bot wallet, secure signing, real swap confirmations and independent testing. No Phantom SOL is traded. Never enter seed phrases or private keys into this public website.</div>'
  ].join("");
  const command=document.getElementById("ccCommandCenter");
  if(command)command.insertAdjacentElement("afterend",panel);
  else main.appendChild(panel);
+window.addEventListener("crimson:paper-status",event=>{
+  const v=event.detail||{},tag=document.getElementById("caPaperDeployment"),
+    description=document.getElementById("caPaperDescription");
+  if(!tag||!description)return;
+  tag.textContent=v.kill?"PAPER HALTED":v.paused?"PAPER PAUSED":
+    v.online?"SCANNING — PAPER":v.configured?"RUNNER OFFLINE":"NOT CONNECTED";
+  tag.className="ca-state "+(v.online&&!v.kill?"ca-green":"ca-yellow");
+  description.textContent="Paper scanner: "+(v.message||"Status unavailable")+
+    " · No automatic trades from Phantom.";
+});
 })();
