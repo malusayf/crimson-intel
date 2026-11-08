@@ -38,6 +38,37 @@ function bytesB64(s){
 if(owner)fromBase58(owner);
 if(managedAddress)fromBase58(managedAddress);
 const challenges=new Map(),sessions=new Map(),attempts=new Map();
+const ownerBalanceCache={value:null,expires:0};
+const solanaRpcUrl=process.env.SOLANA_RPC_URL||"https://api.mainnet-beta.solana.com";
+async function ownerSolBalance(){
+ if(!owner)throw Error("Owner public key is not configured");
+ if(ownerBalanceCache.value&&Date.now()<ownerBalanceCache.expires)
+   return {...ownerBalanceCache.value,cacheAgeMs:Date.now()-(ownerBalanceCache.value.checkedAtMs||Date.now())};
+ const control=new AbortController(),timer=setTimeout(()=>control.abort(),10000);
+ try{
+   const response=await fetch(solanaRpcUrl,{
+     method:"POST",signal:control.signal,cache:"no-store",
+     headers:{"Content-Type":"application/json"},
+     body:JSON.stringify({jsonrpc:"2.0",id:"crimson-owner-sol",
+       method:"getBalance",params:[owner,{commitment:"confirmed"}]})
+   });
+   if(!response.ok)throw Error("RPC request failed");
+   const rpc=await response.json();
+   const lamports=rpc?.result?.value;
+   if(rpc.error||!Number.isSafeInteger(lamports)||lamports<0)
+     throw Error("RPC returned an unavailable or unsafe balance");
+   const value={
+     network:"solana-mainnet",wallet:owner,
+     lamports:String(lamports),sol:lamports/1000000000,
+     source:"Solana getBalance (confirmed commitment)",
+     contextSlot:Number.isSafeInteger(rpc?.result?.context?.slot)?rpc.result.context.slot:null,
+     checkedAt:new Date().toISOString(),checkedAtMs:Date.now()
+   };
+   ownerBalanceCache.value=value;
+   ownerBalanceCache.expires=Date.now()+25000;
+   return {...value,cacheAgeMs:0};
+ }finally{clearTimeout(timer);}
+}
 const MAX_BODY=8192;
 function setSecurityHeaders(res){
  res.setHeader("cache-control","no-store");
@@ -150,6 +181,17 @@ const server=http.createServer(async(req,res)=>{
   }
   if(!auth(req))return send(res,401,{error:"Owner authentication required"});
   if(url.pathname==="/status"&&req.method==="GET")return send(res,200,capability());
+  if(url.pathname==="/wallet/owner-sol-balance"&&req.method==="GET"){
+    // READ ONLY. Fetch only configured, signed-in owner wallet. No arbitrary
+    // address lookup, funding transfer, secret access or transaction execution.
+    if(!owner)return send(res,503,{error:"Wallet owner not configured"});
+    try{
+      const wallet=await ownerSolBalance();
+      return send(res,200,wallet);
+    }catch(e){
+      return send(res,503,{error:"Solana balance unavailable; check private RPC service. No funds moved."});
+    }
+  }
   if(url.pathname==="/quote-preview"&&req.method==="POST"){
     // Owner-authenticated quote preview ONLY: no taker, signing or execution.
     // Never expose JUPITER_API_KEY or provider errors to the public browser.
