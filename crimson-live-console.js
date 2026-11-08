@@ -303,7 +303,7 @@ $("lvConnect").addEventListener("click",async()=>{
   const result=await provider.connect();
   const address=String(result?.publicKey||provider.publicKey||"");
   if(!validWallet(address))throw Error("Phantom did not provide a valid Solana wallet address");
-  ownerAddress=address;token="";expiresAt=0;serverStatus=null;ledger=null;scan=null;solBalance=null;
+  ownerAddress=address;token="";expiresAt=0;serverStatus=null;ledger=null;scan=null;portfolio=null;solBalance=null;botBalance=null;
   setMsg("Connected to Phantom "+address+". Click Verify owner to authenticate the private trading server. No money moved.");
  }catch(e){setMsg("Phantom connection failed: "+String(e.message).slice(0,190));}
  finally{busy=false;draw();}
