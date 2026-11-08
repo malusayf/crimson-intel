@@ -8,6 +8,7 @@
 const http=require("node:http"),crypto=require("node:crypto"),fs=require("node:fs"),path=require("node:path");
 const {JupiterQuotePreview}=require("./jupiter-quote.cjs");
 const {LiveTradeJournal}=require("./live-journal.cjs");
+const {LiveScanner}=require("./live-scanner.cjs");
 const {URL}=require("node:url");
 const B58="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const origin=(process.env.BOT_FRONTEND_ORIGIN||"https://malusayf.github.io").replace(/\/$/,"");
@@ -74,6 +75,8 @@ const MAX_BODY=8192;
 // Live transaction journal stays on persistent storage, separate from archived simulations.
 const liveJournal=new LiveTradeJournal({directory:process.env.BOT_DATA_DIR,
   wallet:managedAddress||undefined});
+const marketScanner=process.env.BOT_LIVE_SCANNER_ENABLED==="true"?
+  new LiveScanner({intervalMs:180000,log:msg=>console.log("[CRIMSON LIVE SCAN]",msg)}):null;
 function setSecurityHeaders(res){
  res.setHeader("cache-control","no-store");
  res.setHeader("x-content-type-options","nosniff");
@@ -131,6 +134,7 @@ function capability(){
   privateBotWallet:managedAddress||null,
   walletReady:false,liveExecutorReady:false,liveTrading:false,
   liveOnly:true,simulationDisabled:true,tradeJournalReady:!!process.env.BOT_DATA_DIR,
+  liveMarketScannerConfigured:!!marketScanner,
   state:"NOT_CONFIGURED",
   message:"Owner authentication is available, but no audited live signer/execution worker is installed. START LIVE is disabled.",
   limitations:["This service cannot directly sign using a connected Phantom extension",
@@ -186,6 +190,12 @@ const server=http.createServer(async(req,res)=>{
   }
   if(!auth(req))return send(res,401,{error:"Owner authentication required"});
   if(url.pathname==="/status"&&req.method==="GET")return send(res,200,capability());
+  if(url.pathname==="/live/scans"&&req.method==="GET"){
+    return send(res,200,marketScanner?marketScanner.status():{
+      mode:"LIVE_MARKET_RESEARCH_ONLY",enabled:false,scanning:false,
+      actualOrders:0,liveExecutionReady:false,everExecutedRealTrade:false,
+      candidates:[],note:"Live scanner is not enabled on this server."});
+  }
   if(url.pathname==="/live/trades"&&req.method==="GET"){
     try{
       return send(res,200,{...liveJournal.summary(),
@@ -253,6 +263,7 @@ if(require.main===module){
  server.listen(port,host,()=>{
   process.stdout.write("[Crimson operator] Listening on "+host+":"+port+
    "; LIVE EXECUTION DISABLED; permitted origin "+origin+"\n");
+  if(marketScanner)marketScanner.start();
  });
 }
 module.exports={server,fromBase58,capability};
