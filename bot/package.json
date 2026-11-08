@@ -15,7 +15,9 @@
     "pause": "node main.cjs pause",
     "resume": "node main.cjs resume",
     "kill": "node main.cjs kill",
-    "clear-kill": "node main.cjs clear-kill"
+    "clear-kill": "node main.cjs clear-kill",
+    "operator": "node operator-server.cjs",
+    "test:operator": "node operator-test.cjs"
   },
   "license": "UNLICENSED"
 }
