@@ -1,0 +1,21 @@
+{
+  "name": "crimson-intel-autotrader",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Autonomous Solana paper trader foundation for Crimson Intel; live execution deliberately unavailable",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "test": "node test.cjs",
+    "once": "node main.cjs once",
+    "start": "node main.cjs run",
+    "status": "node main.cjs status",
+    "pause": "node main.cjs pause",
+    "resume": "node main.cjs resume",
+    "kill": "node main.cjs kill",
+    "clear-kill": "node main.cjs clear-kill"
+  },
+  "license": "UNLICENSED"
+}
