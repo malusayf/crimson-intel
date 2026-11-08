@@ -4,7 +4,7 @@
  * Single Node process, one replica, persistent /data, single paper writer.
  */
 const fs=require("node:fs");
-const path=require("node:path");
+const path=require("node:path"),os=require("node:os");
 const {server}=require("./operator-server.cjs");
 const {CrimsonPaperEngine}=require("./engine.cjs");
 const {PublicSolanaFeeds}=require("./providers.cjs");
@@ -58,21 +58,30 @@ const engine=new CrimsonPaperEngine({
    ev.mint?String(ev.mint).slice(0,8)+"…":"")
 });
 function writerLock(){
- // An active writer lock from a previous deployment can be stale; the owner
- // gateway must never start two competing engines sharing one state journal.
- // Railway is explicitly configured for one replica and no deploy overlap.
+ // Single replica and zero deploy overlap are mandatory at Railway level.
+ // Different containers have different hostnames; a lock from the old
+ // deployment must not prevent recovery on a redeploy or fast crash restart.
+ const hostname=os.hostname();
  if(fs.existsSync(lockFile)){
-  const raw=fs.readFileSync(lockFile,"utf8");
-  const prior=JSON.parse(raw);
-  if(Date.now()-Number(prior.at)<120000)
-   throw Error("Paper writer lock recently held. Refusing concurrent data writes.");
-  console.warn("[PAPER] Recovering stale writer lock");
+  let prior;
+  try{prior=JSON.parse(fs.readFileSync(lockFile,"utf8"));}
+  catch(e){throw Error("Paper lock file corrupt; manual inspection required.");}
+  if(prior.hostname===hostname&&prior.pid!==process.pid){
+   try{
+    process.kill(prior.pid,0);
+    throw Error("Paper writer already running in this container; refusing duplicate process.");
+   }catch(e){
+    if(String(e.message).includes("refusing duplicate")||e.code==="EPERM")throw e;
+    if(e.code!=="ESRCH")throw e;
+   }
+  }
+  console.warn("[PAPER] Recovering writer lock from previous container/restart");
  }
- fs.writeFileSync(lockFile,JSON.stringify({pid:process.pid,at:Date.now()}),
+ fs.writeFileSync(lockFile,JSON.stringify({pid:process.pid,hostname,at:Date.now()}),
   {mode:0o600});
 }
 function refreshLock(){
- fs.writeFileSync(lockFile,JSON.stringify({pid:process.pid,at:Date.now()}),
+ fs.writeFileSync(lockFile,JSON.stringify({pid:process.pid,hostname:os.hostname(),at:Date.now()}),
   {mode:0o600});
 }
 let stopped=false,timer=null;
