@@ -136,7 +136,7 @@ function reset(reason){
   token="";expiresAt=0;ownerAddress="";serverStatus=null;ledger=null;portfolio=null;solBalance=null;botBalance=null;scan=null;provider=null;
   $("lvAllocation").textContent="Funding authorization reset; no funds moved.";
   setMsg(reason||"Disconnected. No live trading authorization.");
-  draw();drawLedger();drawScan();
+  draw();drawLedger();drawScan();drawPortfolio();
 }
 function ready(){
  return loggedIn()&&serverStatus?.online===true&&
@@ -154,6 +154,18 @@ function draw(){
    solBalance.toLocaleString("en-US",{maximumFractionDigits:9})+" SOL":"—";
  const canTrade=ready();
  const active=serverStatus?.liveTrading===true;
+ const pending=serverStatus?.pendingIntent===true;
+ $("lvHeadline").textContent=active?
+  "LIVE REAL-MONEY TRADING: the server can submit irreversible swaps. Closing your browser does not stop it. A restart, loss of liquidity or API outage may leave open positions requiring manual action.":
+  "Railway is monitoring real markets. No trades are currently being placed. The required setup steps are listed below.";
+ const list=$("lvRequirements");list.replaceChildren();
+ if(!loggedIn()){
+   const li=document.createElement("li");li.textContent="Connect Phantom and verify owner to see launch requirements.";list.append(li);
+ }else if(Array.isArray(serverStatus?.missing)&&serverStatus.missing.length){
+   for(const missing of serverStatus.missing){const li=document.createElement("li");li.textContent=missing;list.append(li);}
+ }else{
+   const li=document.createElement("li");li.textContent="Backend configuration gates satisfied. Real-money risk and independent execution tests still apply.";list.append(li);
+ }
  $("lvExecutor").textContent=canTrade?"VERIFIED READY":"NOT READY";
  $("lvExecutor").className=canTrade?"lv-on":"lv-off";
  $("lvMode").textContent=active?"LIVE RUNNING":"LIVE DISABLED";
@@ -201,6 +213,37 @@ function drawScan(){
   body.append(row);
  }
 }
+function drawPortfolio(){
+ const info=portfolio,tbody=$("lvPositions");tbody.replaceChildren();
+ $("lvPositionsCount").textContent=info?String(info.positions.length):"—";
+ $("lvDailySpent").textContent=info?info.counters.spentSol+" / "+info.counters.spendingLimitSol+" SOL":"—";
+ $("lvDailyLoss").textContent=info?info.counters.realizedLossSol+" / "+info.counters.lossLimitSol+" SOL":"—";
+ const pendingBox=$("lvPending");pendingBox.replaceChildren();
+ if(info?.pending){
+  pendingBox.append(document.createTextNode("PENDING "+info.pending.side+" — uncertain on-chain status, no new trades permitted. "));
+  if(info.pending.signature){
+   const a=document.createElement("a");a.href="https://solscan.io/tx/"+encodeURIComponent(info.pending.signature);
+   a.textContent="View pending transaction";a.target="_blank";a.rel="noopener noreferrer";
+   pendingBox.append(a);
+  }
+ }else pendingBox.textContent="No pending live order; a swap must be finalized before it appears in the trade journal.";
+ if(!info?.positions?.length){
+  const row=document.createElement("tr"),cell=document.createElement("td");
+  cell.colSpan=7;cell.textContent=info?"No finalized open positions.":"Verify owner to view positions.";
+  row.append(cell);tbody.append(row);return;
+ }
+ const price=x=>x==null||!Number.isFinite(Number(x))?"—":"$"+Number(x).toPrecision(6);
+ for(const position of info.positions){
+  const tr=document.createElement("tr");
+  const qty=Number(position.rawRemaining)/Math.pow(10,position.decimals);
+  const values=[shorten(position.mint),Number.isFinite(qty)?qty.toLocaleString("en-US",{maximumFractionDigits:8}):"—",
+   price(position.entryObservedUsd),price(position.currentObservedUsd),price(position.stopUsd),
+   [position.tp1Usd,position.tp2Usd,position.tp3Usd].map(price).join(" / "),
+   position.warning||(position.onchainRaw!==null?"Recorded balance queried on-chain":"Chain balance unavailable")];
+  for(const value of values){const td=document.createElement("td");td.textContent=value;tr.append(td);}
+  tbody.append(tr);
+ }
+}
 function drawLedger(){
  const tbody=$("lvTrades");tbody.replaceChildren();
  const rows=ledger?.trades||[];
@@ -229,8 +272,8 @@ function drawLedger(){
 }
 async function refreshAll(){
  if(!loggedIn())throw Error("Verify the Phantom owner signature again.");
- const [statusResult,balanceResult,tradeResult,scanResult,botBalanceResult]=await Promise.allSettled([
-   api("/status"),api("/wallet/owner-sol-balance"),api("/live/trades"),api("/live/scans"),api("/wallet/bot-sol-balance")
+ const [statusResult,balanceResult,tradeResult,scanResult,botBalanceResult,portfolioResult]=await Promise.allSettled([
+   api("/status"),api("/wallet/owner-sol-balance"),api("/live/trades"),api("/live/scans"),api("/wallet/bot-sol-balance"),api("/live/portfolio")
  ]);
  if(statusResult.status!=="fulfilled")throw statusResult.reason;
  serverStatus=statusResult.value;
@@ -249,7 +292,8 @@ async function refreshAll(){
      ledger=tradeResult.value;
  else ledger=null;
  scan=scanResult.status==="fulfilled"&&scanResult.value.mode==="LIVE_MARKET_RESEARCH_ONLY"?scanResult.value:null;
- draw();drawLedger();drawScan();lastPoll=Date.now();
+ portfolio=portfolioResult.status==="fulfilled"&&portfolioResult.value.mode==="LIVE_ONLY"&&Array.isArray(portfolioResult.value.positions)?portfolioResult.value:null;
+ draw();drawLedger();drawScan();drawPortfolio();lastPoll=Date.now();
 }
 $("lvConnect").addEventListener("click",async()=>{
  if(busy)return;busy=true;draw();
@@ -397,5 +441,5 @@ setInterval(async()=>{
  try{await refreshAll();}catch(e){setMsg("Live data refresh unavailable: "+e.message);}
  finally{busy=false;draw();}
 },35000);
-draw();drawLedger();drawScan();
+draw();drawLedger();drawScan();drawPortfolio();
 })();
