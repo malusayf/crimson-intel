@@ -3,6 +3,7 @@
 const assert=require("node:assert/strict");
 const crypto=require("node:crypto");
 const http=require("node:http");
+const fs=require("node:fs"),os=require("node:os"),path=require("node:path");
 // Generate a throwaway test wallet before module load; never use real wallet keys.
 let server,fromBase58,capability;
 const alphabet="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -13,6 +14,15 @@ function toBase58(bytes){
  return out;
 }
 async function test(){
+ // Never allow a deployment test to access a production signer, live wallet, or journal.
+ const testDir=fs.mkdtempSync(path.join(os.tmpdir(),"crimson-operator-http-"));
+ for(const name of ["BOT_SIGNER_SEED_BASE64","BOT_DEDICATED_WALLET_ADDRESS",
+  "JUPITER_API_KEY","SOLANA_RPC_URL"])delete process.env[name];
+ process.env.BOT_DATA_DIR=testDir;
+ process.env.BOT_LIVE_EXECUTION_ENABLED="false";
+ process.env.BOT_LIVE_PILOT_APPROVED="false";
+ process.env.BOT_RECOVERY_VERIFIED="false";
+ process.env.BOT_LIVE_SCANNER_ENABLED="false";
  const pair=crypto.generateKeyPairSync("ed25519");
  const raw=pair.publicKey.export({type:"spki",format:"der"}).subarray(-32);
  const address=toBase58(raw);
@@ -103,6 +113,7 @@ async function test(){
      headers:{Origin:"https://attacker.example"}});
    assert.equal(wrongOrigin.status,403);
    console.log("PASS operator: signed owner login, live-only journal and CSV owner auth, paper APIs removed, live start locked, hostile origin blocked");
- }finally{globalThis.fetch=actualFetch;await new Promise(resolve=>server.close(resolve));}
+ }finally{globalThis.fetch=actualFetch;await new Promise(resolve=>server.close(resolve));
+   fs.rmSync(testDir,{recursive:true,force:true});}
 }
 test().catch(e=>{console.error(e);process.exitCode=1});
