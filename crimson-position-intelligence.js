@@ -7,7 +7,10 @@
   const $=id=>document.getElementById(id);
   if($("ciPositionIntel"))return;
   const GECKO="https://api.geckoterminal.com/api/v2";
-  const mintOK=x=>typeof x==="string"&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(x);
+  const solOK=x=>typeof x==="string"&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(x);
+  const evmOK=x=>typeof x==="string"&&/^0x[a-fA-F0-9]{40}$/.test(x);
+  const mintOK=x=>solOK(x)||evmOK(x);
+  const validFor=(chain,address)=>chain==="robinhood"?evmOK(address):chain==="solana"?solOK(address):false;
   const n=x=>x===null||x===undefined||x===""?NaN:Number(x);
   const finite=x=>Number.isFinite(x);
   const toPrice=x=>finite(x)&&x>0?"$"+x.toPrecision(8):"—";
@@ -56,6 +59,9 @@
       '<div class="cp-tile"><div class="label">CRIMSON POSITION DECISION</div><div class="cp-decision cp-yellow" id="cpDecision">WAIT / NO DATA</div><div class="cp-small" id="cpReason">Load a coin, price structure, and your position.</div></div>',
     '</div>',
     '<div id="cpError" class="cp-small" role="status">Live plan pending.</div>',
+    '<label class="cp-small" style="display:block;margin:10px 0">Optional manual stop-loss price (USD) for either network',
+    '<input id="cpManualStop" type="number" min="0" step="any" placeholder="Manual SL below your entry" style="margin-top:6px;width:100%;max-width:320px"></label>',
+    '<p class="cp-small">A manual SL creates 1R / 2R / 3R TP reference levels without claiming candle verification. Leave empty to use confirmed 5m structure when available. Prices are alert thresholds, never automatic sell orders.</p>',
     '<table class="cp-table" aria-label="Potential profit or loss at reference targets">',
       '<thead><tr><th>Zone</th><th>Target price</th><th>Full position gross P/L</th><th>Return</th></tr></thead>',
       '<tbody>',
@@ -100,7 +106,9 @@
     const rows=payload?.data?.attributes?.ohlcv_list;
     if(!Array.isArray(rows)||rows.length<25)throw Error("Not enough recent five-minute candles.");
     const token=payload?.meta?.base?.address,quoted=payload?.meta?.quote?.address;
-    if(token&&quoted&&token!==mint&&quoted!==mint)throw Error("Candle token does not match the tracked coin.");
+    const eq=(a,b)=>String(a||"").toLowerCase()===String(b||"").toLowerCase();
+    if(token&&quoted&&!eq(token,mint)&&!eq(quoted,mint))
+      throw Error("Candle token does not match the tracked contract.");
     // A candle must be COMPLETED. Delay 5m + 15s to avoid treating an
     // unfinished/clock-skewed candle as confirmed.
     const cutoff=Date.now()/1000-315;
@@ -125,16 +133,20 @@
     return {atr,pivots,minLow,lastPrice:last.c,lastTime:last.ts,source:"GeckoTerminal 5m confirmed candles"};
   }
   async function updateCandles(force=false){
-    if(!current||!mintOK(current.mint)||!mintOK(current.pair?.pairAddress)||requestBusy)return;
-    const key=current.mint+"|"+current.pair.pairAddress;
+    if(!current||!validFor(current.chainId,current.mint)||requestBusy)return;
+    if(!validFor(current.chainId,current.pair?.pairAddress)){
+      candles=null;feedError="No matching DEX pool for completed candles. Enter a manual SL to calculate illustrative TP1–TP3; do not treat issuer reference prices as executable.";
+      render();return;
+    }
+    const key=current.chainId+"|"+current.mint+"|"+current.pair.pairAddress;
     if(!force&&key===cacheKey&&Date.now()-cacheTime<QUOTE_AGE)return;
     requestBusy=true;const thisRequest=++requestId;
     $("cpSource").textContent="5m data: checking";
     try{
-      const path=GECKO+"/networks/solana/pools/"+encodeURIComponent(current.pair.pairAddress)+
+      const path=GECKO+"/networks/"+encodeURIComponent(current.chainId)+"/pools/"+encodeURIComponent(current.pair.pairAddress)+
         "/ohlcv/minute?aggregate=5&limit=80&currency=usd&token="+encodeURIComponent(current.mint);
       const body=await json(path);
-      if(thisRequest!==requestId||!current||current.mint+"|"+current.pair?.pairAddress!==key)return;
+      if(thisRequest!==requestId||!current||current.chainId+"|"+current.mint+"|"+current.pair?.pairAddress!==key)return;
       candles=getOHLC(body,current.mint,n(current.pair.priceUsd));
       cacheKey=key;cacheTime=Date.now();feedError="";
     }catch(e){
@@ -156,7 +168,16 @@
       currentPL:market>0?amount*(market/entry-1):NaN};
   }
   function planning(pos){
-    if(!candles||!pos)return null;
+    if(!pos)return null;
+    const manual=n($("cpManualStop").value);
+    if(finite(manual)){
+      if(!(manual>0&&manual<pos.entry))return null;
+      const risk=pos.entry-manual;
+      return {sl:manual,tp1:pos.entry+risk,tp2:pos.entry+2*risk,tp3:pos.entry+3*risk,
+        risk,atr:null,riskPct:100*risk/pos.entry,riskExtreme:risk/pos.entry>0.5,
+        source:"Manual SL; 1R–3R scenarios, not candle-verified",manual:true};
+    }
+    if(!candles)return null;
     const {atr,minLow,pivots}=candles;
     const below=pivots.filter(x=>x<pos.entry).sort((a,b)=>b-a);
     const support=below[0]??Math.min(minLow,pos.entry-atr);
@@ -167,15 +188,22 @@
     const tp1=pos.entry+risk,tp2=pos.entry+2*risk,tp3=pos.entry+3*risk;
     if(![risk,tp1,tp2,tp3].every(finite))return null;
     return {sl:structuralSL,tp1,tp2,tp3,risk,atr,riskPct:100*risk/pos.entry,
-      riskExtreme:risk>8*atr||risk/pos.entry>0.5};
+      riskExtreme:risk>8*atr||risk/pos.entry>0.5,
+      source:"Confirmed 5m structure",manual:false};
   }
   function decide(pos,plan){
     const m=intel?.market,sec=security||intel?.security;
     if(!pos)return {title:"ENTER POSITION DETAILS",reason:"Enter your actual purchase price and investment amount in the existing calculator.",type:"yellow"};
-    if(!current||!(pos.market>0))return {title:"WAIT · TRACK A COIN",reason:"Select a Solana coin to review actual market prices.",type:"yellow"};
-    if(!plan)return {title:"NO VERIFIED TRADE PLAN",reason:feedError+" Market safety alerts are still available without the chart-based TP/SL levels.",type:"yellow"};
+    if(!current||!(pos.market>0))return {title:"WAIT · TRACK A TOKEN",reason:"Select a token on Solana or Robinhood Chain to review observed prices.",type:"yellow"};
+    if(!plan)return {title:"NO VERIFIED TRADE PLAN",reason:(finite(n($("cpManualStop").value))?
+       "Manual stop must be positive and below your entry price. ":"")+feedError+
+       " Without structure or a valid manual SL, target prices cannot be calculated.",type:"yellow"};
     // Highest-priority warnings override all optimistic momentum readings.
-    if(pos.market<=plan.sl)return {title:"EXIT WARNING · BELOW SL",reason:"Current quoted price is at/below the structural invalidation reference. Liquidity and execution may worsen realized proceeds.",type:"red"};
+    if(pos.market<=plan.sl)return {title:"PRICE BELOW PLANNED SL",reason:"Observed/reference price is at or below your SL. There is NO automatic exit or guaranteed fill; slippage and missing liquidity can defeat an exit.",type:"red"};
+    if(current?.pair?.priceType==="issuer-reference"){
+      if(current.pair.isTradingHalt)return {title:"UNDERLYING TRADING HALT",reason:"Robinhood issuer reports an underlying trading halt. This is not an executable quote.",type:"red"};
+      return {title:"REFERENCE-ONLY · MANUAL PLAN",reason:"Issuer stock-token reference only: no DEX execution quote, volume or liquidity. TP/SL projections are hypothetical, and the token is not offered to U.S. persons.",type:"yellow"};
+    }
     if(sec?.verified&&sec.reject)return {title:"EXIT WARNING · SECURITY FLAG",reason:"Independent RugCheck screening reported unresolved structural risk. A high pump score cannot cancel that finding.",type:"red"};
     if(m?.dangerous||m?.dump)return {title:"REDUCE / EXIT WARNING",reason:"Current market danger or strong selling evidence exceeds the safety threshold. Reassess exposure before waiting for targets.",type:"red"};
     if(pos.market>=plan.tp3)return {title:"TP3 REACHED · REVIEW EXIT",reason:"Current quoted price is at/above TP3. Consider closing the remaining position; selling is not automatic.",type:"green"};
@@ -204,8 +232,11 @@
     field("cpRisk",plan?"Risk "+pct(-plan.riskPct)+" / "+money(-pos.qty*plan.risk)+" at reference stop":"Waiting for confirmed 5m structure");
     field("cpDecision",decision.title);$("cpDecision").className="cp-decision cp-"+decision.type;
     field("cpReason",decision.reason);
-    field("cpSource",candles?"5m structure: confirmed "+new Date(candles.lastTime*1000).toLocaleTimeString():"5m data: "+(requestBusy?"checking":"not verified"));
-    field("cpError",candles?"Targets are anchored to YOUR entry and a current structural SL; they will change if the observed structure changes.":feedError);
+    field("cpSource",plan?.manual?"Manual SL · not candle-verified":
+      candles?"5m structure: confirmed "+new Date(candles.lastTime*1000).toLocaleTimeString():"5m data: "+(requestBusy?"checking":"not verified"));
+    field("cpError",plan?.manual?
+      "Manual 1R/2R/3R reference levels from YOUR entry and stop. No confirmed structure, order, or fill is implied.":
+      candles?"Targets follow YOUR entry and current 5m candle structure; they may change.":feedError);
     row("TP1",plan?plan.tp1:null,pos||{amount:0,entry:1});
     row("TP2",plan?plan.tp2:null,pos||{amount:0,entry:1});
     row("TP3",plan?plan.tp3:null,pos||{amount:0,entry:1});
@@ -221,11 +252,12 @@
     // Publish read-only position/zone snapshots so Guardian can LOCK a plan;
     // no code in the original position calculator needs to change thereafter.
     window.CRIMSON_LATEST_POSITION = {
-      mint:current?.mint||null, pairAddress:current?.pair?.pairAddress||null,
+      mint:current?.mint||null,chainId:current?.chainId||null,
+      pairAddress:current?.pair?.pairAddress||null,
       amount:pos?.amount??null, entry:pos?.entry??null, qty:pos?.qty??null,
       market:pos?.market??null, plan:plan?{...plan}:null,
       decision:{...decision}, updatedAt:Date.now(),
-      candlesVerified:!!candles
+      candlesVerified:!!candles&&!plan?.manual
     };
     window.dispatchEvent(new CustomEvent("crimson:position-plan", {
       detail:window.CRIMSON_LATEST_POSITION
@@ -234,6 +266,7 @@
   const entryChanged=()=>render();
   entryInput.addEventListener("input",entryChanged);
   amountInput.addEventListener("input",entryChanged);
+  $("cpManualStop").addEventListener("input",entryChanged);
   $("cpRefresh").addEventListener("click",()=>{cacheTime=0;updateCandles(true);});
   $("cpAlertStop").addEventListener("click",()=>{
     const plan=planning(position());if(!plan||!$("below"))return;
@@ -248,34 +281,35 @@
   function alertNote(t){field("cpError",t);}
   window.addEventListener("crimson:tracked-change",e=>{
     const mint=e.detail?.mint;
-    if(!mintOK(mint))return;
     current=null;intel=null;security=null;candles=null;cacheKey="";cacheTime=0;requestId++;
-    feedError="Loading new tracked token…";render();
+    $("cpManualStop").value="";
+    feedError=validFor(e.detail?.chainId,mint)?"Loading new tracked token…":"Choose a network and track a contract.";
+    render();
   });
   window.addEventListener("crimson:market-snapshot",e=>{
     const m=e.detail?.mint,p=e.detail?.pair;
-    if(!mintOK(m)||p?.chainId!=="solana")return;
-    if(current?.mint!==m||current?.pair?.pairAddress!==p.pairAddress){
+    if(!validFor(p?.chainId,m))return;
+    if(current?.mint!==m||current?.chainId!==p.chainId||current?.pair?.pairAddress!==p.pairAddress){
       candles=null;cacheKey="";cacheTime=0;security=null;intel=null;feedError="Fetching confirmed 5m candles…";
     }
-    current={mint:m,pair:p};
+    current={mint:m,chainId:p.chainId,pair:p};
     render();
     updateCandles();
   });
   window.addEventListener("crimson:unified-intelligence",e=>{
     const x=e.detail;
-    if(!mintOK(x?.mint)||!current||x.mint!==current.mint)return;
+    if(!mintOK(x?.mint)||!current||x.mint!==current.mint||x.pair?.chainId!==current.chainId)return;
     intel=x;security=x.security||security;render();
   });
   window.addEventListener("crimson:security-check",e=>{
     const x=e.detail;
-    if(!current||x?.mint!==current.mint)return;
+    if(!current||current.chainId!=="solana"||x?.mint!==current.mint)return;
     security=x.report;render();
   });
   // In case the tracked coin was loaded before this script initialized.
   const last=window.CRIMSON_LATEST_MARKET;
-  if(last&&mintOK(last.mint)&&last.pair?.chainId==="solana"){
-    current={mint:last.mint,pair:last.pair};
+  if(last&&validFor(last.pair?.chainId,last.mint)){
+    current={mint:last.mint,chainId:last.pair.chainId,pair:last.pair};
     intel=window.CRIMSON_LATEST_INTELLIGENCE||null;
     security=intel?.security||null;
     updateCandles();
