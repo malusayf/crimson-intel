@@ -58,6 +58,7 @@ class LiveScanner{
         securityVerified:!!report?.verified,securityPass:!!report?.pass,
         securityReason:report?.reason||reportError||"Risk unverified",
         candleConfirmed:confirmed,
+        entryPlan:confirmed?{entryReference:plan.entryReference,stop:plan.stop,tp1:plan.tp1,tp2:plan.tp2,tp3:plan.tp3,lastCandleAt:plan.lastCandleAt}:null,
         signalLabel:confirmed?"STRUCTURE WATCH — NOT AN ORDER":"RESEARCH ONLY",
         updatedAt:new Date(this.clock()).toISOString()
       });
