@@ -234,6 +234,19 @@ $("clDisconnect").addEventListener("click",()=>{
  status("Owner session cleared. No bot wallet was connected or granted spending authority.");
  update();
 });
+// Always invalidate the verified session and cached balance when Phantom changes
+// accounts or disconnects. A stale owner session must never look like it controls
+// a different wallet.
+function invalidateWallet(reason){
+ address="";token="";sessionExpires=0;backend=null;observedSol=null;balanceAt=0;
+ $("clFundingPreview").textContent="Funding allocation reset. Connect and verify Phantom again before viewing your SOL balance.";
+ status(reason);update();
+}
+const phantomEvents=findPhantom();
+if(phantomEvents?.on){
+ phantomEvents.on("accountChanged",()=>invalidateWallet("Phantom account changed. Reconnect and verify this wallet."));
+ phantomEvents.on("disconnect",()=>invalidateWallet("Phantom disconnected. Reconnect to restore read-only balance access."));
+}
 $("clServerUrl").value=OPERATOR_ORIGIN;
 provider=findPhantom();update();
 })();
