@@ -76,7 +76,7 @@ function chooseExit(position,spot,marketState,securityState){
   if(securityState?.verified&&securityState.pass===false)return {type:"EMERGENCY",fraction:1,why:"token security flag"};
   if(marketState?.danger||marketState?.adequate===false)return {type:"EMERGENCY",fraction:1,why:"market risk or inadequate liquidity"};
   if(position.stage<3&&spot>=position.tp3)return {type:"TP3",fraction:1,why:"third target crossed"};
-  if(position.stage<2&&spot>=position.tp2)return {type:"TP2",fraction:position.stage===0?.75:2/3,why:"second target crossed"};
+  if(position.stage<2&&spot>=position.tp2)return {type:"TP2",fraction:position.stage===0?.5:1/3,why:"second target crossed"};
   if(position.stage<1&&spot>=position.tp1)return {type:"TP1",fraction:.25,why:"first target crossed"};
   return null;
 }
