@@ -81,7 +81,7 @@ panel.innerHTML=[
 '<div class="cg-warning"><strong>Limits:</strong> Guardian saves manually entered positions locally in this browser for the signed-in account. Other devices do not sync this data. These warnings cannot run after you close the browser; 24/7 alerts need a secure backend. Token security and wallet ownership are not inferred from price alone. SL/TP zones are reference prices, and extremely illiquid pools may be impossible to exit.</div>'
 ].join("");
 if(original)original.insertAdjacentElement("afterend",panel);else main.append(panel);
-const data={snapshot:null,planSnapshot:null,unified:null,security:null,liquidityHistory:[],warningKey:"",quote:null,locked:null,userKey:""};
+const data={snapshot:null,planSnapshot:null,unified:null,security:null,liquidityHistory:[],warningKey:"",quote:null,plans:{},userKey:""};
 function accountKey(){
 if(document.body.classList.contains("ci-account-locked"))return "";
 const name=String($("ciAccountEmail")?.textContent||"").trim().toLowerCase();
@@ -94,22 +94,22 @@ function recordKey(){
 const k=accountKey();
 if(!k)return "";
 if(data.userKey!==k){
-data.userKey=k;data.locked=null;data.quote=null;
+data.userKey=k;data.plans={};data.quote=null;
 try{const v=JSON.parse(localStorage.getItem(k)||"null");
-if(v&&typeof v==="object"&&mintOK(v.mint)&&v.plan&&Array.isArray(v.sales))data.locked=v;
+if(v&&typeof v==="object"&&v.plans&&typeof v.plans==="object")data.plans=Object.fromEntries(Object.entries(v.plans).filter(([mint,plan])=>mintOK(mint)&&plan?.plan&&Array.isArray(plan.sales)));
 }catch(e){}
 }
 return k;
 }
 function persist(){
 const k=recordKey();if(!k)return;
-try{if(data.locked)localStorage.setItem(k,JSON.stringify(data.locked));
+try{if(Object.keys(data.plans).length)localStorage.setItem(k,JSON.stringify({plans:data.plans}));
 else localStorage.removeItem(k);}
 catch(e){$("cgStatus").textContent="Browser storage unavailable: data may not persist.";}
 }
 function currentMint(){return data.snapshot?.mint||data.planSnapshot?.mint||"";}
 function lockedForCurrent(){
-recordKey();return data.locked&&data.locked.mint===currentMint()?data.locked:null;
+recordKey();return data.plans[currentMint()]||null;
 }
 function availableQty(l){
 if(!l)return 0;
@@ -209,9 +209,9 @@ else data.warningKey="";
 }
 function lock(){
 const v=livePlan();if(!v||!recordKey())return;
-if(data.locked&&data.locked.mint===v.mint)return;
+if(data.plans[v.mint])return;
 const entry=number(v.entry),amount=number(v.amount),qty=number(v.qty);
-data.locked={
+data.plans[v.mint]={
  mint:v.mint,pairAddress:v.pairAddress,entry,invested:amount,quantity:qty,
  plan:{sl:Number(v.plan.sl),tp1:Number(v.plan.tp1),tp2:Number(v.plan.tp2),tp3:Number(v.plan.tp3)},
  createdAt:Date.now(),sales:[]
@@ -231,7 +231,7 @@ persist();render();
 }
 function clearPlan(){const lk=lockedForCurrent();if(!lk)return;
 if(!window.confirm("Clear the locked plan and its manually recorded exits for this coin?"))return;
-data.locked=null;persist();render();
+delete data.plans[lk.mint];persist();render();
 }
 function storeQuote(){
 const amount=number($("cgQuote").value),mint=currentMint();
