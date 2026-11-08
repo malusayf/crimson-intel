@@ -1,14 +1,15 @@
 "use strict";
 /* Crimson PRIVATE operator gateway v0.1.
  * Phantom proves the ONLY authorized owner via Ed25519 message signature.
- * No wallet keys are requested or handled here. Live executor is intentionally
- * not wired: Start Live fails CLOSED until an independently audited service is
- * deployed and explicitly configured. Never expose raw localhost HTTP publicly.
+ * Dedicated bot signer (never Phantom) is loaded only after explicit private
+ * configuration. No live funds move until owner-authenticated Start and all
+ * backend risk gates pass. Never expose raw localhost HTTP publicly.
  */
 const http=require("node:http"),crypto=require("node:crypto"),fs=require("node:fs"),path=require("node:path");
 const {JupiterQuotePreview}=require("./jupiter-quote.cjs");
 const {LiveTradeJournal}=require("./live-journal.cjs");
 const {LiveScanner}=require("./live-scanner.cjs");
+const {LiveController}=require("./live-controller.cjs");
 const {URL}=require("node:url");
 const B58="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const origin=(process.env.BOT_FRONTEND_ORIGIN||"https://malusayf.github.io").replace(/\/$/,"");
@@ -77,6 +78,8 @@ const liveJournal=new LiveTradeJournal({directory:process.env.BOT_DATA_DIR,
   wallet:managedAddress||undefined});
 const marketScanner=process.env.BOT_LIVE_SCANNER_ENABLED==="true"?
   new LiveScanner({intervalMs:180000,log:msg=>console.log("[CRIMSON LIVE SCAN]",msg)}):null;
+const liveController=new LiveController({scanner:marketScanner,journal:liveJournal,
+  log:msg=>console.log(msg)});
 function setSecurityHeaders(res){
  res.setHeader("cache-control","no-store");
  res.setHeader("x-content-type-options","nosniff");
@@ -129,24 +132,26 @@ function auth(req){
  return data.address===owner;
 }
 function capability(){
+ const live=liveController.status();
  return {
   online:true,network:"solana-mainnet",walletConnection:"Phantom owner authentication",
-  privateBotWallet:managedAddress||null,
-  walletReady:false,liveExecutorReady:false,liveTrading:false,
   liveOnly:true,simulationDisabled:true,tradeJournalReady:!!process.env.BOT_DATA_DIR,
   liveMarketScannerConfigured:!!marketScanner,
-  state:"NOT_CONFIGURED",
-  message:"Owner authentication is available, but no audited live signer/execution worker is installed. START LIVE is disabled.",
-  limitations:["This service cannot directly sign using a connected Phantom extension",
-   "Fund a separate, limited-balance signing wallet only after secure execution is verified",
-   "Never share Phantom seed phrase or import it into this server"]
+  ...live,
+  state:live.liveTrading?"LIVE_RUNNING":live.liveExecutorReady?"READY_FOR_OWNER_START":"NOT_CONFIGURED",
+  limitations:[
+    "Dedicated signer must be distinct from Phantom; no seed phrase belongs in the browser or ChatGPT.",
+    "Automated trading uses a conservative pullback proxy, not the manual 0ABC model.",
+    "Losses and failed exits can occur even with risk controls; unresolved swaps freeze new orders."
+  ]
  };
 }
+
 const server=http.createServer(async(req,res)=>{
  try{
   const url=new URL(req.url||"/","http://localhost");
   if(url.pathname==="/health"&&req.method==="GET"){
-    return send(res,200,{online:true,mode:"CONTROL_PLANE_ONLY",liveTrading:false,ownerConfigured:!!owner,signerReady:false});
+    return send(res,200,{online:true,mode:liveController.running?"LIVE_RUNNING":"CONTROL_PLANE",liveTrading:liveController.running,ownerConfigured:!!owner,signerReady:liveController.status().liveExecutorReady});
   }
   if(!allowOrigin(req,res))return send(res,403,{error:"Origin not allowed"});
   if(req.method==="OPTIONS"){res.writeHead(204);res.end();return;}
@@ -199,8 +204,8 @@ const server=http.createServer(async(req,res)=>{
   if(url.pathname==="/live/trades"&&req.method==="GET"){
     try{
       return send(res,200,{...liveJournal.summary(),
-        executionReady:false,liveTrading:false,
-        explanation:"Only finalized swaps from the dedicated bot wallet can enter this journal. No real executor is installed yet."});
+        executionReady:liveController.status().liveExecutorReady,liveTrading:liveController.running,
+        explanation:"Every recorded trade requires a finalized on-chain receipt; an unresolved order blocks additional execution."});
     }catch(e){return send(res,503,{error:"Verified live trade journal unavailable; no trades were fabricated."});}
   }
   if(url.pathname==="/live/trades.csv"&&req.method==="GET"){
@@ -243,13 +248,21 @@ const server=http.createServer(async(req,res)=>{
     }
   }
   if(url.pathname==="/start"&&req.method==="POST"){
-    // Critical: Never turn a frontend click into unaudited transactions.
-    return send(res,409,{error:"Live executor has not been securely configured or tested. No funds moved.",...capability()});
+    const body=await json(req);
+    if(body.confirmed!==true||Object.keys(body).some(k=>k!=="confirmed"))
+      return send(res,400,{error:"Explicit live-funds confirmation required."});
+    try{liveController.start();return send(res,200,capability());}
+    catch(e){return send(res,409,{error:String(e.message||e).slice(0,240),...capability()});}
   }
-  if(url.pathname==="/stop"&&req.method==="POST")
-    return send(res,200,{stopped:true,liveTrading:false,message:"No live executor is running."});
-  if(url.pathname==="/emergency-stop"&&req.method==="POST")
-    return send(res,200,{stopped:true,liveTrading:false,message:"No live executor is running."});
+  if((url.pathname==="/stop"||url.pathname==="/emergency-stop")&&req.method==="POST"){
+    liveController.stop();
+    return send(res,200,{...capability(),stopped:true,
+      message:"Live worker stopped. No additional orders are initiated, but an in-flight transaction might still finalize. Existing positions remain in the bot wallet; automated exits are also stopped."});
+  }
+  if(url.pathname==="/live/reconcile"&&req.method==="POST"){
+    const result=await liveController.reconcile();
+    return send(res,result.resolved?200:409,{...result,...capability()});
+  }
   if(url.pathname==="/auth/logout"&&req.method==="POST"){
     const token=(req.headers.authorization||"").slice(7);sessions.delete(token);
     return send(res,200,{signedOut:true});
@@ -262,7 +275,7 @@ const server=http.createServer(async(req,res)=>{
 if(require.main===module){
  server.listen(port,host,()=>{
   process.stdout.write("[Crimson operator] Listening on "+host+":"+port+
-   "; LIVE EXECUTION DISABLED; permitted origin "+origin+"\n");
+   "; Start Live guarded by private readiness and owner authorization; permitted origin "+origin+"\n");
   if(marketScanner)marketScanner.start();
  });
 }
