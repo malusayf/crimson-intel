@@ -3,7 +3,8 @@
 const assert=require("node:assert/strict");
 const crypto=require("node:crypto");
 const http=require("node:http");
-const {server,fromBase58,capability}=require("./operator-server.cjs");
+// Generate a throwaway test wallet before module load; never use real wallet keys.
+let server,fromBase58,capability;
 const alphabet="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 function toBase58(bytes){
  let z=0n;for(const b of bytes)z=z*256n+BigInt(b);
@@ -15,6 +16,8 @@ async function test(){
  const pair=crypto.generateKeyPairSync("ed25519");
  const raw=pair.publicKey.export({type:"spki",format:"der"}).subarray(-32);
  const address=toBase58(raw);
+ process.env.BOT_OWNER_PUBLIC_KEY=address;
+ ({server,fromBase58,capability}=require("./operator-server.cjs"));
  assert.deepEqual(fromBase58(address),raw);
  assert.equal(capability().liveTrading,false);
  assert.equal(capability().liveExecutorReady,false);
@@ -33,17 +36,30 @@ async function test(){
  try{
    const health=await req("/health");assert.equal(health.status,200);
    assert.equal(health.data.liveTrading,false);
-   // The owner must be configured for challenges. No owner = fail-closed.
-   if(!process.env.BOT_OWNER_PUBLIC_KEY){
-     const challenge=await req("/auth/challenge","POST",{address});
-     assert.equal(challenge.status,503);
-   }
+   const unauthorized=await req("/auth/challenge","POST",{address:"So11111111111111111111111111111111111111112"});
+   assert.equal(unauthorized.status,403);
    const noSession=await req("/status");assert.equal(noSession.status,401);
    const noStart=await req("/start","POST",{});assert.equal(noStart.status,401);
+   const challenge=await req("/auth/challenge","POST",{address});
+   assert.equal(challenge.status,200);
+   assert(challenge.data.message.includes(address));
+   const signature=crypto.sign(null,Buffer.from(challenge.data.message,"utf8"),pair.privateKey).toString("base64");
+   const good=await req("/auth/verify","POST",{address,message:challenge.data.message,signature});
+   assert.equal(good.status,200);
+   assert.equal(good.data.liveExecutorReady,false);
+   const ownerSession=good.data.token;
+   const cannotSpend=await req("/start","POST",{confirmed:true},ownerSession);
+   assert.equal(cannotSpend.status,409);
+   assert.equal(cannotSpend.data.liveTrading,false);
+   const replay=await req("/auth/verify","POST",{address,message:challenge.data.message,signature});
+   assert.equal(replay.status,401);
+   const verified=await req("/status","GET",null,ownerSession);
+   assert.equal(verified.status,200);
+   assert.equal(verified.data.walletReady,false);
    const wrongOrigin=await fetch("http://127.0.0.1:"+port+"/status",{
      headers:{Origin:"https://attacker.example"}});
    assert.equal(wrongOrigin.status,403);
-   console.log("PASS operator: Ed25519 pubkey decode, health, no-owner refusal, unauthenticated start blocked, origin denied");
+   console.log("PASS operator: owner-only challenge, Ed25519 verification, nonce replay prevention, no unauthorized start, live disabled, hostile origin rejected");
  }finally{await new Promise(resolve=>server.close(resolve));}
 }
 test().catch(e=>{console.error(e);process.exitCode=1});
