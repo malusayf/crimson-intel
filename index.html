@@ -759,6 +759,7 @@ a {
   let upTriggered = false;
   let downTriggered = false;
   let refreshAgain = false;
+  let lastAssetKey='';
   const chain=()=> $('ciChainSelect').value;
   const validAddress=m=>window.CrimsonChainData?.isValid(chain(),m)===true;
 
@@ -1446,6 +1447,13 @@ a {
       status('Enter a valid '+(chain()==='solana'?'Solana mint':'Robinhood Chain 0x contract')+' address.',true);
       return;
     }
+    const nextAssetKey=window.CrimsonChainData.tokenKey(chain(),m);
+    if(lastAssetKey&&lastAssetKey!==nextAssetKey){
+      $('above').value='';$('below').value='';
+      upTriggered=false;downTriggered=false;
+      $('alertstatus').textContent='Price alerts cleared for the new tracked asset; re-enter target thresholds.';
+    }
+    lastAssetKey=nextAssetKey;
     mint=m;pair=null;price=NaN;
     window.CRIMSON_LATEST_MARKET=null;
     if(busy)refreshAgain=true;
@@ -1493,7 +1501,10 @@ a {
   });
   window.CRIMSON_TRACK_ASSET=(network,address)=>{
     if(!window.CrimsonChainData.isValid(network,address))return false;
-    $('ciChainSelect').value=network;
+    if($('ciChainSelect').value!==network){
+      $('ciChainSelect').value=network;
+      $('ciChainSelect').dispatchEvent(new Event('change',{bubbles:true}));
+    }
     $('mint').value=address;
     start();
     $('ci-tab-overview')?.click();
