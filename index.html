@@ -781,7 +781,7 @@ a {
   // FORMAT PERCENTAGES
 
   const pct = n =>
-    Number.isFinite(Number(n))
+    n!==null&&n!==undefined&&n!==''&&Number.isFinite(Number(n))
       ? (Number(n) > 0 ? '+' : '') +
         Number(n).toFixed(2) + '%'
       : '—';
@@ -830,15 +830,10 @@ a {
 
     const total = buys + sells;
 
-    const valid = [
-      liquidity,
-      volume,
-      change5,
-      change1h,
-      change24h,
-      buys,
-      sells
-    ].every(Number.isFinite);
+    const required=[p.liquidity?.usd,p.volume?.h24,p.priceChange?.m5,
+      p.priceChange?.h1,p.priceChange?.h24,p.txns?.m5?.buys,p.txns?.m5?.sells,
+      p.txns?.h1?.buys,p.txns?.h1?.sells,p.volume?.h1,p.volume?.m5];
+    const valid=required.every(x=>x!==null&&x!==undefined&&x!==''&&Number.isFinite(Number(x)));
 
     if (
       !valid ||
@@ -1325,13 +1320,8 @@ a {
       const sells =
         Number(tx.sells) || 0;
 
-      const total =
-        buys + sells;
-
-      const share =
-        total
-          ? 100 * buys / total
-          : 50;
+      const total=tx.buys==null||tx.sells==null?0:buys+sells;
+      const share=total?100*buys/total:50;
 
       $('score').textContent =
         total
@@ -1383,7 +1373,9 @@ a {
         pair.priceType==='issuer-reference'?'Issuer contract explorer ↗':'Robinhood Chain DEX pool ↗';
       const embedKey=requestedChain+'|'+(pair.pairAddress||mint);
       if($('chart').dataset.pair!==embedKey){
-        $('chart').src=requestedChain==='solana'?url+'?embed=1&theme=dark&trades=0&info=0':'about:blank';
+        const embedUrl=requestedChain==='solana'?url:
+          pair.pairAddress?'https://dexscreener.com/robinhood/'+encodeURIComponent(pair.pairAddress):null;
+        $('chart').src=embedUrl?embedUrl+'?embed=1&theme=dark&trades=0&info=0':'about:blank';
         $('chart').dataset.pair=embedKey;
       }
       const note=$('chart').nextElementSibling;
@@ -1391,7 +1383,7 @@ a {
         'DEX Screener chart. If embedding is blocked, open the link above.':
         pair.priceType==='issuer-reference'?
         'No DEX price chart exists for this issuer reference. Open the issuer contract above.':
-        'Robinhood Chain DEX pool chart opens with the link above. No synthetic price chart is shown.';
+        'Robinhood Chain DEX chart provided by DEX Screener where indexed. If the embed is unavailable, use the verified GeckoTerminal pool link above.';
 
       // UPDATE ALL INTELLIGENCE SYSTEMS
 
