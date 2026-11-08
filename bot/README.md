@@ -2,6 +2,10 @@
 
 **Deployment status:** Owner-authenticated Railway control API is online. **Real trading is disabled**, because the dedicated signing wallet and audited swap executor are not yet installed. The paper scanner was disabled and removed from the website and operator API. Its earlier private data is archived separately and **never appears as real trade history**.
 
+## Live market scanner
+
+The Railway operator API can run `LiveScanner`, which retrieves **real Solana market data** and applies conservative volume, liquidity, security and candle checks. It has no paper wallet, simulated fills, signer or transaction submission. Its owner-authenticated `GET /live/scans` endpoint is displayed in the AutoTrader tab. A preliminary market setup is research only, not an executable trade. The scanner is enabled by `BOT_LIVE_SCANNER_ENABLED=true`.
+
 ## What you can use now
 
 - Connect Phantom in the [Crimson Intel AutoTrader](https://malusayf.github.io/crimson-intel/) tab.
