@@ -10,13 +10,13 @@ const {URL}=require("node:url");
 const B58="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const origin=(process.env.BOT_FRONTEND_ORIGIN||"https://malusayf.github.io").replace(/\/$/,"");
 const owner=(process.env.BOT_OWNER_PUBLIC_KEY||"").trim();
-const host=process.env.BOT_API_BIND||"127.0.0.1";
-const port=Number(process.env.BOT_API_PORT||8788);
+const host=process.env.BOT_API_BIND||(process.env.PORT?"0.0.0.0":"127.0.0.1");
+const port=Number(process.env.PORT||process.env.BOT_API_PORT||8788);
 const managedAddress=process.env.BOT_DEDICATED_WALLET_ADDRESS||"";
 if(!/^https:\/\//.test(origin)||!Number.isInteger(port)||port<1024||port>65535)
  throw Error("Configure valid BOT_FRONTEND_ORIGIN and BOT_API_PORT");
-if(host!=="127.0.0.1"&&host!=="::1"&&process.env.BOT_BEHIND_TLS_PROXY!=="true")
- throw Error("Non-local binding requires HTTPS reverse-proxy configuration");
+if(host!=="127.0.0.1"&&host!=="::1"&&process.env.BOT_BEHIND_TLS_PROXY!=="true"&&!process.env.RAILWAY_PUBLIC_DOMAIN)
+ throw Error("Non-local binding requires a verified HTTPS reverse proxy");
 function fromBase58(s){
  if(typeof s!=="string"||s.length<32||s.length>44)throw Error("Invalid key");
  let v=0n;
@@ -105,7 +105,7 @@ const server=http.createServer(async(req,res)=>{
  try{
   const url=new URL(req.url||"/","http://localhost");
   if(url.pathname==="/health"&&req.method==="GET"){
-    return send(res,200,{online:true,mode:"CONTROL_PLANE_ONLY",liveTrading:false});
+    return send(res,200,{online:true,mode:"CONTROL_PLANE_ONLY",liveTrading:false,ownerConfigured:!!owner,signerReady:false});
   }
   if(!allowOrigin(req,res))return send(res,403,{error:"Origin not allowed"});
   if(req.method==="OPTIONS"){res.writeHead(204);res.end();return;}
