@@ -6,7 +6,9 @@
 "use strict";
 const $=id=>document.getElementById(id),DEX="https://api.dexscreener.com";
 if($("ccCommandCenter"))return;
-const valid=x=>typeof x==="string"&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(x);
+const valid=x=>typeof x==="string"&&(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(x)||/^0x[a-fA-F0-9]{40}$/.test(x));
+const chainFor=x=>x?.chainId==="robinhood"?"robinhood":"solana";
+const portfolioKey=x=>chainFor(x)+"|"+(chainFor(x)==="robinhood"?x.mint.toLowerCase():x.mint);
 const num=x=>x===null||x===undefined||x===""?NaN:Number(x);
 const fin=x=>Number.isFinite(x);
 const dollar=x=>fin(x)?(x<0?"−":"")+"$"+Math.abs(x).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}):"—";
@@ -40,7 +42,8 @@ section.innerHTML=[
 '<h2>⚔ Crimson Command Center · Portfolio & Evidence Lab</h2>',
 '<p class="cc-small">Track multiple spot holdings manually; inspect transaction-pattern warnings, developer research links and the outcomes of actual observed signals. This is a browser-based beta, not live wallet custody or a backtest.</p>',
 '<div class="cc-sub"><h3>Portfolio Risk Commander</h3>',
-'<div class="cc-form"><label>Solana token mint<input id="ccMint" placeholder="Mint address" spellcheck="false"></label>',
+'<div class="cc-form"><label>Network<select id="ccChain"><option value="solana">Solana</option><option value="robinhood">Robinhood Chain</option></select></label>',
+'<label>Token mint / contract<input id="ccMint" placeholder="Mint / 0x contract" spellcheck="false"></label>',
 '<label>Amount invested (USD)<input id="ccAmount" type="number" step="any" min="0" placeholder="100"></label>',
 '<label>Entry price (USD)<input id="ccEntry" type="number" step="any" min="0" placeholder="0.00001"></label></div>',
 '<div class="cc-controls"><button id="ccUseTracked">Use tracked position</button>',
@@ -95,8 +98,10 @@ if(scope===key)return true;
 scope=key;holdings=[];events=[];prices.clear();lastIntel=null;lastSecurity=null;
 try{
 const parsed=JSON.parse(localStorage.getItem(scope)||"null");
-if(parsed&&Array.isArray(parsed.holdings))holdings=parsed.holdings.filter(x=>valid(x.mint)&&x.amount>0&&x.entry>0).slice(0,20);
-if(parsed&&Array.isArray(parsed.events))events=parsed.events.filter(x=>valid(x.mint)&&x.price>0).slice(-160);
+if(parsed&&Array.isArray(parsed.holdings))holdings=parsed.holdings.filter(x=>valid(x.mint)&&x.amount>0&&x.entry>0)
+ .map(x=>({...x,chainId:chainFor(x)})).slice(0,20);
+if(parsed&&Array.isArray(parsed.events))events=parsed.events.filter(x=>valid(x.mint)&&x.price>0)
+ .map(x=>({...x,chainId:chainFor(x)})).slice(-160);
 }catch(e){}
 return true;
 }
@@ -108,9 +113,11 @@ catch(e){$("ccPortfolioStatus").textContent="Local browser storage unavailable; 
 function add(){
 if(!ensure()){$("ccPortfolioStatus").textContent="Sign in before saving holdings.";return;}
 const mint=$("ccMint").value.trim(),amount=num($("ccAmount").value),entry=num($("ccEntry").value);
-if(!valid(mint)||!(amount>0&&entry>0)){$("ccPortfolioStatus").textContent="Enter valid mint, invested USD and entry price.";return;}
-const row={mint,amount,entry,created:Date.now()};
-const prev=holdings.findIndex(x=>x.mint===mint);
+const chainId=$("ccChain").value;
+if(!window.CrimsonChainData?.isValid(chainId,mint)||!(amount>0&&entry>0)){
+ $("ccPortfolioStatus").textContent="Select the correct network and enter a valid contract, invested USD and entry price.";return;}
+const row={mint,chainId,amount,entry,created:Date.now()};
+const prev=holdings.findIndex(x=>portfolioKey(x)===portfolioKey(row));
 if(prev>=0)holdings[prev]=row;
 else if(holdings.length<20)holdings.push(row);
 else{$("ccPortfolioStatus").textContent="20-holding limit reached; remove one first.";return;}
@@ -119,7 +126,7 @@ persist();renderPortfolio();refreshQuotes();
 function renderPortfolio(){
 if(!ensure()){for(const id of ["ccCost","ccValue","ccPnL","ccConcentration"])$(id).textContent="—";return;}
 const cost=holdings.reduce((s,x)=>s+x.amount,0),valuations=holdings.map(x=>{
-const result=prices.get(x.mint),q=result?.price;
+const result=prices.get(portfolioKey(x)),q=result?.price;
 return {holding:x,value:fin(q)&&q>0?x.amount*q/x.entry:NaN};
 });
 const complete=holdings.length>0&&valuations.every(x=>fin(x.value));
@@ -131,54 +138,75 @@ $("ccPnL").textContent=complete?dollar(total-cost):"—";
 $("ccConcentration").textContent=fin(top)?top.toFixed(1)+"%":"—";
 const rows=$("ccPortfolioRows");rows.replaceChildren();
 for(const x of valuations){
-const tr=document.createElement("tr"),quote=prices.get(x.holding.mint);
-const symbols=quote?.symbol||x.holding.mint.slice(0,6)+"…";
+const tr=document.createElement("tr"),quote=prices.get(portfolioKey(x.holding));
+const symbols=(chainFor(x.holding)==="robinhood"?"RH · ":"SOL · ")+(quote?.symbol||x.holding.mint.slice(0,6)+"…");
 for(const cell of [symbols,dollar(x.holding.amount),dollar(x.value),
 dollar(fin(x.value)?x.value-x.holding.amount:NaN)])tr.append(create("td",cell));
 const c=document.createElement("td"),btn=create("button","Remove");btn.type="button";
-btn.addEventListener("click",()=>{holdings=holdings.filter(p=>p.mint!==x.holding.mint);persist();renderPortfolio();});
+btn.addEventListener("click",()=>{holdings=holdings.filter(p=>portfolioKey(p)!==portfolioKey(x.holding));persist();renderPortfolio();});
 c.append(btn);tr.append(c);rows.append(tr);
 }
 const concern=fin(top)&&top>35?" Top holding >35% of observed portfolio: concentration risk.":"";
 $("ccPortfolioStatus").textContent=holdings.length+" holdings · "+
 (complete?"all quotes available.":"some values missing/stale.")+
-concern+" Quotes from DEX Screener, not executable sell orders.";
+concern+" Quotes from chain-specific DEX sources or issuer reference; never executable sell orders.";
 }
 async function refreshQuotes(){
-if(!ensure()||busy||document.hidden||!holdings.length)return;
-busy=true;$("ccRefresh").disabled=true;
-try{
-const names=holdings.map(x=>x.mint);
-const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),12000);
-let pools;try{
-const res=await fetch(DEX+"/tokens/v1/solana/"+names.map(encodeURIComponent).join(","),{cache:"no-store",signal:ctl.signal});
-if(!res.ok)throw Error("DEX HTTP "+res.status);
-pools=await res.json();
-}finally{clearTimeout(timer);}
-if(!Array.isArray(pools))throw Error("Provider returned no pools");
-const best=new Map();
-for(const p of pools){
-const mint=p?.baseToken?.address;
-if(!names.includes(mint))continue;
-const prev=best.get(mint);
-if(!prev||num(p?.liquidity?.usd)>num(prev?.liquidity?.usd))best.set(mint,p);
-}
-for(const x of holdings){
-const pair=best.get(x.mint),v=num(pair?.priceUsd);
-if(fin(v)&&v>0)prices.set(x.mint,{price:v,symbol:pair?.baseToken?.symbol,at:Date.now()});
-else prices.delete(x.mint);
-}
-quotesAt=Date.now();
-$("ccPortfolioStatus").textContent="Refreshed "+new Date().toLocaleTimeString()+
-" · unavailable values omitted.";
-}catch(e){prices.clear();$("ccPortfolioStatus").textContent="Quote update failed: "+String(e.message)+
-". Portfolio values withheld until fresh quotes return.";}
-finally{busy=false;$("ccRefresh").disabled=false;renderPortfolio();}
+ if(!ensure()||busy||document.hidden||!holdings.length)return;
+ busy=true;$("ccRefresh").disabled=true;
+ const sol=holdings.filter(x=>chainFor(x)==="solana");
+ const rh=holdings.filter(x=>chainFor(x)==="robinhood");
+ const failures=[];
+ try{
+  if(sol.length){
+   const names=sol.map(x=>x.mint);
+   const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),12000);
+   try{
+    const res=await fetch(DEX+"/tokens/v1/solana/"+names.map(encodeURIComponent).join(","),
+      {cache:"no-store",signal:ctl.signal});
+    if(!res.ok)throw Error("Solana DEX HTTP "+res.status);
+    const pools=await res.json();
+    if(!Array.isArray(pools))throw Error("Solana DEX feed unavailable");
+    const best=new Map();
+    for(const p of pools){
+     const mint=p?.baseToken?.address;
+     if(p?.chainId!=="solana"||!names.includes(mint))continue;
+     const old=best.get(mint);
+     if(!old||num(p?.liquidity?.usd)>num(old?.liquidity?.usd))best.set(mint,p);
+    }
+    for(const x of sol){
+     const pair=best.get(x.mint),v=num(pair?.priceUsd);
+     if(fin(v)&&v>0)prices.set(portfolioKey(x),{price:v,symbol:pair?.baseToken?.symbol,at:Date.now()});
+     else{prices.delete(portfolioKey(x));failures.push("SOL "+x.mint.slice(0,6));}
+    }
+   }catch(e){for(const x of sol)prices.delete(portfolioKey(x));failures.push("Solana quotes unavailable");}
+   finally{clearTimeout(timer);}
+  }
+  // Research-only Robinhood Chain quotes. No EVM wallet access or order execution.
+  // Small bounded batches to respect upstream public feeds.
+  for(let i=0;i<rh.length;i+=4){
+   await Promise.all(rh.slice(i,i+4).map(async x=>{
+    try{
+     const r=await window.CrimsonChainData.load("robinhood",x.mint);
+     const quote=r.pair?.priceUsd;
+     if(r.pair?.dataStale||!(quote>0))throw Error("Stale or unavailable");
+     prices.set(portfolioKey(x),{price:quote,symbol:r.pair?.baseToken?.symbol,
+      source:r.pair.priceType,at:Date.now()});
+    }catch(e){prices.delete(portfolioKey(x));failures.push("RH "+x.mint.slice(0,6));}
+   }));
+  }
+  quotesAt=Date.now();
+ }finally{
+  busy=false;$("ccRefresh").disabled=false;renderPortfolio();
+  if(failures.length)$("ccPortfolioStatus").textContent+=" Missing / stale: "+failures.slice(0,4).join(", ")+
+   (failures.length>4?" and "+(failures.length-4)+" others":"")+".";
+ }
 }
 function research(){
 const pair=lastSnapshot?.pair,intel=lastIntel?.market,security=lastSecurity||lastIntel?.security,mint=lastSnapshot?.mint;
 const box=$("ccResearchLinks");box.replaceChildren();
-if(!valid(mint)||!pair){$("ccBrief").textContent="Track a Solana coin to generate an evidence-based brief.";return;}
+if(!valid(mint)||!pair){$("ccBrief").textContent="Track a Solana or Robinhood token to generate a market brief.";return;}
+const network=pair.chainId==="robinhood"?"robinhood":"solana";
 const v5=num(pair.volume?.m5),buys=num(pair.txns?.m5?.buys),
 sells=num(pair.txns?.m5?.sells),trades=buys+sells,average=trades>0?v5/trades:NaN;
 $("ccTradeSize").textContent=dollar(average);
@@ -198,32 +226,40 @@ const notes=[
 "Current observed market: "+(intel?.decision||"insufficient / unavailable")+".",
 "5m trades: "+(fin(trades)?trades:"—")+", average volume per transaction "+dollar(average)+".",
 "1h and 5m price changes: "+percent(flow1)+" and "+percent(flow5)+".",
-"Token report: "+(security?.verified?
+"Token report: "+(network==="robinhood"?
+ (pair.issuerListed?"Issuer identity matched; smart-contract safety NOT VERIFIED.":"Robinhood Chain smart-contract safety NOT VERIFIED."):
+ security?.verified?
  (security.reject?"RugCheck has warnings/unknown lock status.":"Available RugCheck report does not flag severe risk, but rugs remain possible."):
  "Token security UNVERIFIED.")+".",
 flags.length?"Anomalies: "+flags.join(" "):"No flagged count-volume anomaly at these thresholds.",
 "Developer history, wallet relationships and insider concentration: NOT CONNECTED."
 ];
 $("ccBrief").textContent=notes.join(" ");
-for(const [label,url] of [["Inspect token on Solscan ↗","https://solscan.io/token/"+encodeURIComponent(mint)],
-["RugCheck report ↗","https://rugcheck.xyz/tokens/"+encodeURIComponent(mint)],
-["DEX Screener pools ↗","https://dexscreener.com/solana/"+encodeURIComponent(pair?.pairAddress||mint)]]){
+const links=network==="robinhood"?
+ [["Inspect token on Blockscout ↗","https://robinhoodchain.blockscout.com/token/"+mint],
+  ["Robinhood DEX pool ↗",pair?.pairAddress?"https://www.geckoterminal.com/robinhood/pools/"+encodeURIComponent(pair.pairAddress):
+  "https://www.geckoterminal.com/robinhood/pools"]]:
+ [["Inspect token on Solscan ↗","https://solscan.io/token/"+encodeURIComponent(mint)],
+  ["RugCheck report ↗","https://rugcheck.xyz/tokens/"+encodeURIComponent(mint)],
+  ["DEX Screener pools ↗","https://dexscreener.com/solana/"+encodeURIComponent(pair?.pairAddress||mint)]];
+for(const [label,url] of links){
 const a=create("a",label);a.href=url;a.target="_blank";a.rel="noopener noreferrer";box.append(a);
 }
 }
 function observe(){
 if(!ensure()||!lastSnapshot||!lastIntel)return;
-const mint=lastSnapshot.mint,price=num(lastSnapshot?.pair?.priceUsd),market=lastIntel.market;
+const mint=lastSnapshot.mint,chainId=chainFor(lastSnapshot?.pair),
+ price=num(lastSnapshot?.pair?.priceUsd),market=lastIntel.market;
 if(!valid(mint)||!(price>0)||!market)return;
 let changed=false;
 for(const e of events){
-if(e.mint!==mint||e.followPrice||Date.now()-e.ts<3600000)continue;
+if(e.mint!==mint||chainFor(e)!==chainId||e.followPrice||Date.now()-e.ts<3600000)continue;
 e.followPrice=price;e.followAt=Date.now();changed=true;
 }
 const type=market.dangerous?"MARKET DANGER":market.dump?"DUMP WATCH":market.pump?"PUMP WATCH":null;
 if(type){
-const recent=events.find(x=>x.mint===mint&&x.type===type&&Date.now()-x.ts<3*3600000);
-if(!recent){events.push({mint,ts:Date.now(),price,type,followPrice:null,followAt:null});changed=true;}
+const recent=events.find(x=>x.mint===mint&&chainFor(x)===chainId&&x.type===type&&Date.now()-x.ts<3*3600000);
+if(!recent){events.push({mint,chainId,ts:Date.now(),price,type,followPrice:null,followAt:null});changed=true;}
 }
 if(changed){events=events.slice(-160);persist();}
 renderObservations();
@@ -237,13 +273,14 @@ $("ccAverage").textContent=resolved.length?percent(resolved.reduce((s,x)=>s+100*
 const tbody=$("ccObservations");tbody.replaceChildren();
 for(const x of [...events].reverse().slice(0,18)){
 const row=document.createElement("tr"),change=fin(x.followPrice)&&x.followPrice>0?100*(x.followPrice/x.price-1):NaN;
-for(const c of [new Date(x.ts).toLocaleString(),x.mint.slice(0,7)+"…",x.type,pr(x.followPrice),percent(change)])row.append(create("td",c));
+for(const c of [new Date(x.ts).toLocaleString(),(chainFor(x)==="robinhood"?"RH ":"SOL ")+x.mint.slice(0,7)+"…",x.type,pr(x.followPrice),percent(change)])row.append(create("td",c));
 tbody.append(row);
 }
 }
 $("ccAdd").addEventListener("click",add);
 $("ccUseTracked").addEventListener("click",()=>{
 $("ccMint").value=lastSnapshot?.mint||$("mint")?.value.trim()||"";
+$("ccChain").value=chainFor(lastSnapshot?.pair);
 $("ccAmount").value=$("amount")?.value||"";
 $("ccEntry").value=$("entry")?.value||"";
 });
@@ -265,7 +302,7 @@ const a=document.createElement("a");a.href=url;a.download="crimson-observed-sign
 setTimeout(()=>URL.revokeObjectURL(url),1000);
 });
 window.addEventListener("crimson:market-snapshot",e=>{
-lastSnapshot=e.detail;research();if(lastIntel?.mint===lastSnapshot?.mint)observe();
+lastSnapshot=e.detail;research();if(lastIntel?.mint===lastSnapshot?.mint&&lastIntel?.pair?.chainId===lastSnapshot?.pair?.chainId)observe();
 });
 window.addEventListener("crimson:unified-intelligence",e=>{
 lastIntel=e.detail;research();observe();
