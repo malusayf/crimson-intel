@@ -85,7 +85,7 @@ node.innerHTML=[
 '<button id="lvExport" type="button" disabled>Export CSV</button></div></div>',
 '<p class="lv-sub" id="lvJournalStatus">No real trade records loaded.</p>',
 '<div class="lv-table-wrap"><table class="lv-table"><thead><tr>',
-'<th>Executed (UTC)</th><th>Trade</th><th>Token</th><th>Quantity</th><th>Actual effective entry / exit (SOL/token)</th><th>Net SOL</th><th>Network fee</th><th>Transaction</th>',
+'<th>Executed (UTC)</th><th>Trade</th><th>Token</th><th>Quantity</th><th>Actual effective entry / exit (SOL/token)</th><th>SOL paid / received</th><th>Network fee</th><th>Transaction</th>',
 '</tr></thead><tbody id="lvTrades"></tbody></table></div>',
 '<div class="lv-empty" id="lvNoTrades">No verified real transactions yet. Paper and estimated fills are not included.</div></div>',
 '<p class="lv-sub">Ledger prices are derived from finalized wallet balance changes, inclusive of network fees and account-rent movements. A separate Jupiter execution-price feed will be needed to isolate swap-only price from those costs. Records will appear only after the live execution system is connected and produces confirmed transactions.</p>',
@@ -199,7 +199,7 @@ function drawLedger(){
     x.blockTime?new Date(x.blockTime*1000).toISOString().replace("T"," ").slice(0,19):"—",
     x.side==="BUY"?"BUY · Entry":"SELL · Exit",
     shorten(x.mint),
-    x.tokenQuantity,x.priceSolPerToken,x.effectiveSol,x.networkFeeSol
+    x.tokenQuantity,x.priceSolPerToken,(x.side==="BUY"?"−":"+")+x.effectiveSol,x.networkFeeSol
   ];
   for(const cell of value){
     const td=document.createElement("td");td.textContent=String(cell??"—");tr.append(td);
