@@ -17,11 +17,19 @@ const finite=x=>typeof x==="number"&&Number.isFinite(x);
 const round=x=>Math.round(x*100000000)/100000000;
 const safeError=e=>String(e?.message||e).slice(0,220);
 function validateConfig(c){
-  if(c.initialCashUsd<=0||c.maxDailyLossFraction<=0||c.maxDailyLossFraction>=1||
-    c.maxRiskPerTradeFraction<=0||c.maxRiskPerTradeFraction>=.1||
-    c.maxPositionEquityFraction<=0||c.maxPositionEquityFraction>.5||
-    c.maxOpenPositions<1||c.maxOpenPositions>5||
-    c.maxDailyEntries<1||c.maxDailyEntries>30)throw Error("Unsafe risk configuration");
+  const keys=["initialCashUsd","maxDailyLossFraction","maxTotalDrawdownFraction",
+    "maxRiskPerTradeFraction","maxPositionEquityFraction","maxOpenPositions",
+    "maxDailyEntries","maxTradeUsd","modeledFeeUsd","maxSlippageFraction","scanEveryMs"];
+  if(!keys.every(key=>finite(c[key]))||c.initialCashUsd<=0||
+    c.maxDailyLossFraction<=0||c.maxDailyLossFraction>.10||
+    c.maxTotalDrawdownFraction<=0||c.maxTotalDrawdownFraction>.30||
+    c.maxRiskPerTradeFraction<=0||c.maxRiskPerTradeFraction>.02||
+    c.maxPositionEquityFraction<=0||c.maxPositionEquityFraction>.20||
+    !Number.isInteger(c.maxOpenPositions)||c.maxOpenPositions<1||c.maxOpenPositions>5||
+    !Number.isInteger(c.maxDailyEntries)||c.maxDailyEntries<1||c.maxDailyEntries>30||
+    c.maxTradeUsd<=0||c.modeledFeeUsd<0||
+    c.maxSlippageFraction<0||c.maxSlippageFraction>.05||
+    c.scanEveryMs<60000)throw Error("Unsafe risk configuration");
 }
 class CrimsonPaperEngine{
   constructor({feeds,store,clock=()=>Date.now(),getFlags=()=>({}),config={},log=()=>{}}={}){
