@@ -280,11 +280,18 @@ lastSnapshot=null;lastIntel=null;lastSecurity=null;research();
 const active=window.CRIMSON_LATEST_MARKET;if(active)lastSnapshot=active;
 if(window.CRIMSON_LATEST_INTELLIGENCE)lastIntel=window.CRIMSON_LATEST_INTELLIGENCE;
 if(ensure()){renderPortfolio();renderObservations();research();}
+// Keep the observer active across sign-out / sign-in, not just the initial login.
+// This partitions local portfolio data immediately when a different account
+// unlocks the page, preventing the previous user's figures from lingering.
 const watcher=new MutationObserver(()=>{
-if(!document.body.classList.contains("ci-account-locked")){watcher.disconnect();ensure();renderPortfolio();renderObservations();refreshQuotes();}
+if(document.body.classList.contains("ci-account-locked")){
+  scope="";holdings=[];events=[];prices.clear();
+  lastSnapshot=null;lastIntel=null;lastSecurity=null;
+}else{
+  ensure();renderPortfolio();renderObservations();research();refreshQuotes();
+}
 });
-if(document.body.classList.contains("ci-account-locked"))
 watcher.observe(document.body,{attributes:true,attributeFilter:["class"]});
-else refreshQuotes();
+if(!document.body.classList.contains("ci-account-locked"))refreshQuotes();
 setInterval(()=>{if(!document.hidden&&Date.now()-quotesAt>100000)refreshQuotes();},100000);
 })();
