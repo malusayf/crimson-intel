@@ -62,6 +62,7 @@ async function test(){
    const publicBadView=await req("/robinhood/pools?view=invalid");assert.equal(publicBadView.status,400);
    const publicBadTicker=await req("/robinhood/stock-quote?symbol=x%2Fy");assert.equal(publicBadTicker.status,400);
    const publicBadPool=await req("/robinhood/pool?address=http://evil.example");assert.equal(publicBadPool.status,400);
+   const publicBadToken=await req("/robinhood/token?address=javascript:unsafe");assert.equal(publicBadToken.status,400);
    const noSession=await req("/status");assert.equal(noSession.status,401);
    const noPortfolio=await req("/live/portfolio");assert.equal(noPortfolio.status,401,"Portfolio requires owner authentication");
    const noJournalSession=await req("/live/trades");assert.equal(noJournalSession.status,401);
