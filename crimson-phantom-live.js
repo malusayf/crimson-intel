@@ -51,6 +51,19 @@ box.innerHTML=[
 '<button id="clPreviewFunding" type="button" disabled>Preview allocation</button></div>',
 '<p id="clFundingPreview" class="cl-warn cl-progress">Your balance is read-only. A funding transaction cannot be prepared until the dedicated wallet, recovery verification and live executor have passed safety checks.</p>',
 '<div class="cl-actions"><button id="clFund" type="button" disabled>Fund bot wallet · Locked</button></div></div>',
+'<div class="cl-funding"><h3 style="margin:0 0 6px">📡 Autonomous Paper Scanner · Railway</h3>',
+'<p class="cl-warn">The online scanner uses simulated funds, NOT the SOL in Phantom. All entries, partial profits, stops and P/L below are modeled, not confirmed fills.</p>',
+'<div class="cl-grid"><div class="cl-card"><div class="label">SCANNER</div><div class="cl-value" id="clPaperState">Not checked</div></div>',
+'<div class="cl-card"><div class="label">PAPER EQUITY</div><div class="cl-value" id="clPaperEquity">—</div></div>',
+'<div class="cl-card"><div class="label">OPEN PAPER POSITIONS</div><div class="cl-value" id="clPaperPositions">—</div></div>',
+'<div class="cl-card"><div class="label">SCAN RESULTS</div><div class="cl-value" id="clPaperScans">—</div></div></div>',
+'<div class="cl-actions"><button id="clPaperRefresh" type="button" disabled>Refresh scanner</button>',
+'<button id="clPaperPause" type="button" disabled>Pause paper buys</button>',
+'<button id="clPaperResume" type="button" disabled>Resume paper buys</button>',
+'<button id="clPaperKill" type="button" disabled>Emergency halt paper trades</button>',
+'<button id="clPaperRestore" type="button" disabled>Clear paper emergency halt</button></div>',
+'<p id="clPaperDetails" class="cl-warn">Sign in with Phantom to view the private paper scanner. A running server alone does not mean paper scanning is enabled.</p>',
+'<div id="clPaperActivity" class="cl-status" style="font-size:12px">No scans reported.</div></div>',
 '<div class="cl-actions"><button id="clConnect" type="button">Connect Phantom</button>',
 '<button id="clCopyAddress" type="button" disabled>Copy public address</button>',
 '<button id="clAuthorize" type="button" disabled>Verify wallet ownership</button>',
@@ -65,7 +78,7 @@ box.innerHTML=[
 parent.append(box);
 const OPERATOR_ORIGIN="https://crimson-operator-api-production.up.railway.app";
 let provider=null,address="",token="",backend=null,base=OPERATOR_ORIGIN,busy=false,sessionExpires=0;
-let observedSol=null,balanceAt=0;
+let observedSol=null,balanceAt=0,paper=null,paperLastUpdate=0;
 function truncate(x){return x?x.slice(0,6)+"…"+x.slice(-5):"—";}
 function status(message){$("clStatus").textContent=message;}
 function safeUrl(s){
@@ -91,6 +104,11 @@ function update(){
  $("clCopyAddress").disabled=busy||!address;
  $("clAuthorize").disabled=busy||!address||!base;
  $("clCheck").disabled=busy||!authorized;
+ $("clPaperRefresh").disabled=busy||!authorized;
+ $("clPaperPause").disabled=busy||!authorized||paper?.configured!==true||paper?.paused===true||paper?.kill===true;
+ $("clPaperResume").disabled=busy||!authorized||paper?.configured!==true||paper?.paused!==true||paper?.kill===true;
+ $("clPaperKill").disabled=busy||!authorized||paper?.configured!==true||paper?.kill===true;
+ $("clPaperRestore").disabled=busy||!authorized||paper?.configured!==true||paper?.kill!==true;
  $("clBalance").disabled=busy||!authorized;
  $("clPreviewFunding").disabled=busy||!authorized||!Number.isFinite(observedSol);
  $("clFund").disabled=true; // No wallet transfer until audited signer and exact destination validation exist.
@@ -133,6 +151,58 @@ async function refreshOwnerSol(){
  balanceAt=Date.now();
  status("Read-only Phantom SOL balance updated. No funds moved. Server quote time: "+(v.checkedAt||"unknown"));
 }
+function displayPaper(){
+ $("clPaperState").textContent=!paper?"NOT CHECKED":
+   paper.configured!==true?"NOT DEPLOYED":
+   paper.kill?"EMERGENCY HALT":
+   paper.paused?"PAUSED":
+   paper.online?"SCANNING — PAPER":"RUNNER OFFLINE";
+ $("clPaperEquity").textContent=Number.isFinite(paper?.equityUsd)?
+   "$"+paper.equityUsd.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}):"—";
+ $("clPaperPositions").textContent=Number.isInteger(paper?.openPositions)?String(paper.openPositions):"—";
+ const scans=paper?.lastScan;
+ $("clPaperScans").textContent=scans?
+   String(scans.found??0)+" found / "+String(scans.marketQualified??0)+" market pass":"—";
+ $("clPaperDetails").textContent=paper?.message||"Paper server status unavailable."+
+   " Paper only; no real trades.";
+ if(!paper){$("clPaperActivity").textContent="No paper scanner status yet.";return;}
+ const rows=(paper.recentEvents||[]).slice(-8).reverse().map(x=>
+   String(x.at||"").slice(11,19)+" UTC · "+String(x.type||"")+
+   " · "+String(x.message||"").slice(0,110));
+ $("clPaperActivity").textContent=rows.length?rows.join("\n"):"No paper events yet.";
+}
+async function refreshPaper(){
+ if(!token||Date.now()>=sessionExpires)throw Error("Please verify Phantom ownership again.");
+ const result=await request("/paper/status","GET",null,true);
+ if(result.mode!=="PAPER_ONLY"||result.liveTrading!==false)
+   throw Error("Unexpected backend response: paper mode safety check failed.");
+ paper=result;paperLastUpdate=Date.now();displayPaper();update();
+}
+async function operatePaper(command){
+ if(busy||!token)return;
+ if(command==="kill"&&!window.confirm("Emergency halt ALL simulated trades, including simulated exits?"))return;
+ if(command==="clear-kill"&&!window.confirm("Re-enable simulated trade management after a paper emergency halt?"))return;
+ busy=true;update();
+ try{
+   const result=await request("/paper/"+command,"POST",{},true);
+   if(result.mode!=="PAPER_ONLY"||result.liveTrading!==false)
+     throw Error("Refused unexpected response");
+   paper=result;paperLastUpdate=Date.now();displayPaper();
+   status("Paper command confirmed: "+(result.message||command)+
+     " No Phantom SOL transferred or traded.");
+ }catch(e){status("Paper command failed: "+e.message);paper=null;displayPaper();}
+ finally{busy=false;update();}
+}
+$("clPaperRefresh").addEventListener("click",async()=>{
+ if(busy)return;busy=true;update();
+ try{await refreshPaper();status("Paper scanner status updated; no real trades authorized.");}
+ catch(e){paper=null;displayPaper();status("Cannot read paper scanner: "+e.message);}
+ finally{busy=false;update();}
+});
+for(const [id,command] of [
+ ["clPaperPause","pause"],["clPaperResume","resume"],
+ ["clPaperKill","kill"],["clPaperRestore","clear-kill"]])
+ $(id).addEventListener("click",()=>operatePaper(command));
 $("clBalance").addEventListener("click",async()=>{
  if(busy)return;busy=true;update();
  try{await refreshOwnerSol();}
@@ -167,7 +237,7 @@ $("clConnect").addEventListener("click",async()=>{
    const result=await provider.connect();
    address=String(result?.publicKey||provider.publicKey||"");
    if(!address)throw Error("No public address returned.");
-   backend=null;token="";sessionExpires=0;observedSol=null;
+   backend=null;token="";sessionExpires=0;observedSol=null;paper=null;displayPaper();
    status("Phantom connected: "+address+". This connection does not authorize automatic spending.");
  }catch(e){status("Phantom connection unsuccessful: "+String(e.message));}
  finally{busy=false;update();}
@@ -196,6 +266,7 @@ $("clAuthorize").addEventListener("click",async()=>{
    backend=verified;
    status("Wallet ownership verified. "+(verified.message||"Live trading is not configured."));
    try{await refreshOwnerSol();}catch(e){observedSol=null;status("Wallet verified; SOL balance could not be retrieved: "+String(e.message));}
+   try{await refreshPaper();}catch(e){paper=null;displayPaper();}
  }catch(e){token="";backend=null;sessionExpires=0;status("Authentication unsuccessful: "+String(e.message));}
  finally{busy=false;update();}
 });
@@ -230,7 +301,7 @@ $("clDisconnect").addEventListener("click",()=>{
    status("Stop real trading on the server BEFORE disconnecting. Closing Phantom alone does not stop the bot.");
    return;
  }
- token="";sessionExpires=0;backend=null;address="";provider=null;observedSol=null;
+ token="";sessionExpires=0;backend=null;address="";provider=null;observedSol=null;paper=null;displayPaper();
  status("Owner session cleared. No bot wallet was connected or granted spending authority.");
  update();
 });
@@ -238,7 +309,7 @@ $("clDisconnect").addEventListener("click",()=>{
 // accounts or disconnects. A stale owner session must never look like it controls
 // a different wallet.
 function invalidateWallet(reason){
- address="";token="";sessionExpires=0;backend=null;observedSol=null;balanceAt=0;
+ address="";token="";sessionExpires=0;backend=null;observedSol=null;balanceAt=0;paper=null;displayPaper();
  $("clFundingPreview").textContent="Funding allocation reset. Connect and verify Phantom again before viewing your SOL balance.";
  status(reason);update();
 }
@@ -247,6 +318,12 @@ if(phantomEvents?.on){
  phantomEvents.on("accountChanged",()=>invalidateWallet("Phantom account changed. Reconnect and verify this wallet."));
  phantomEvents.on("disconnect",()=>invalidateWallet("Phantom disconnected. Reconnect to restore read-only balance access."));
 }
+// The paper engine continues on Railway while the browser is closed.
+// Auto-refresh its status only when this tab is visible and owner login is valid.
+setInterval(async()=>{
+ if(document.hidden||busy||!token||Date.now()>=sessionExpires||Date.now()-paperLastUpdate<15000)return;
+ try{await refreshPaper();}catch(e){paper=null;displayPaper();}
+},20000);
 $("clServerUrl").value=OPERATOR_ORIGIN;
 provider=findPhantom();update();
 })();
