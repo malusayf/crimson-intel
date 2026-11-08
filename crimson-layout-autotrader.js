@@ -61,7 +61,7 @@
       {id:"overview",tab:"📊 Dashboard",title:"Market Dashboard",desc:"Price, Unified Intelligence, DEX chart and entry assessments."},
       {id:"discover",tab:"🔎 Discover",title:"Find Coins",desc:"Automatic Solana discovery and screened Safety Scout candidates."},
       {id:"positions",tab:"🎯 Positions & Guardian",title:"Positions & Guardian",desc:"Investment calculator, TP1–TP3, stop-loss planning, locked positions, partial sales and security protection."},
-      {id:"autotrader",tab:"🤖 AutoTrader",title:"Automatic Trading (Paper Mode)",desc:"Autonomous paper engine, risk controls, deployment status and the path to a securely connected bot wallet."},
+      {id:"autotrader",tab:"🤖 AutoTrader",title:"Live AutoTrader & Verified Trade Journal",desc:"Owner-authenticated Phantom connection, live execution readiness, dedicated wallet funding and finalized buy/sell history."},
       {id:"portfolio",tab:"💼 Portfolio",title:"Portfolio & Performance",desc:"Multiple holdings, risk concentration, anomaly research and signal observations."},
       {id:"research",tab:"🧠 Research",title:"Project & Growth Research",desc:"Growth Scout, Project Intel and planned wallet intelligence."},
       {id:"alerts",tab:"🔔 Alerts",title:"Price Alerts",desc:"Your original price thresholds and browser notification controls."}
