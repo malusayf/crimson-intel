@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node operator-server.cjs",
-    "test": "node live-journal-test.cjs && node operator-test.cjs && node quote-test.cjs && node live-scanner-test.cjs && node live-controller-test.cjs",
+    "test": "node live-journal-test.cjs && node operator-test.cjs && node quote-test.cjs && node live-scanner-test.cjs && node live-controller-test.cjs && node robinhood-market-test.cjs",
     "test:journal": "node live-journal-test.cjs",
     "test:operator": "node operator-test.cjs",
     "test:quote": "node quote-test.cjs",
@@ -18,7 +18,8 @@
     "wallet:address": "node wallet-setup.cjs show-address",
     "test:scanner": "node live-scanner-test.cjs",
     "test:live": "node live-controller-test.cjs",
-    "wallet:railway-secret": "node wallet-setup.cjs railway-secret"
+    "wallet:railway-secret": "node wallet-setup.cjs railway-secret",
+    "test:robinhood": "node robinhood-market-test.cjs"
   },
   "license": "UNLICENSED",
   "dependencies": {
