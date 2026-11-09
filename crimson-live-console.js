@@ -57,16 +57,9 @@ node.innerHTML=[
 '<button id="lvRefresh" type="button" disabled>Refresh live status</button>',
 '<button id="lvNotify" type="button" disabled>Enable real-trade notifications</button>',
 '<button id="lvCopy" type="button" disabled>Copy Phantom address</button>',
-'<button id="lvCopyBot" type="button" disabled>Copy bot deposit address</button>',
+
 '<button id="lvLogout" type="button">Disconnect</button>',
 '</div>',
-'<div class="lv-section"><h3>Live Trading Controls</h3>',
-'<div class="lv-actions"><button id="lvStart" type="button" disabled>Start Live · Locked</button>',
-'<button id="lvStop" type="button" disabled>Stop new trades</button>',
-'<button id="lvEmergency" type="button" disabled>Emergency halt</button>',
-'<button id="lvReconcile" type="button" disabled>Reconcile pending trade</button></div>',
-'<p id="lvStatus" class="lv-info" role="status">Connect Phantom and verify your wallet ownership to inspect the private server.</p>',
-'<h4>Start Live requirements</h4><ul class="lv-sub" id="lvRequirements"><li>Verify Phantom owner to load missing requirements.</li></ul></div>',
 '<div class="lv-section"><h3>Fund Bot · Simple Setup</h3>',
 '<p class="lv-sub">This guided screen confirms signer, recovery, provider and pilot safety before permitting you to copy a deposit address. No secrets or wallet passwords go into this website.</p>',
 '<p class="lv-info" id="lvFundingStatus">Connect Phantom to check deposit safety.</p>',
@@ -75,10 +68,18 @@ node.innerHTML=[
 '<p class="lv-sub">Choose an allocation from your existing SOL. The selected amount is only a preview; no funding or transaction authorization occurs here.</p>',
 '<div class="lv-amount"><label>Proposed amount (SOL)<input type="number" id="lvAllocate" min="0" step="0.000001" placeholder="0.1"></label>',
 '<button id="lvPreview" type="button" disabled>Preview allocation</button>',
+'<button id="lvCopyBot" type="button" disabled>Copy verified deposit address</button>',
 '</div>',
 '<label class="lv-sub" style="display:block;margin:12px 0"><input id="lvConfirmDeposit" type="checkbox" style="width:auto;margin-right:7px">I backed up and independently tested recovery of this exact dedicated wallet and checked its address.</label>',
 '<p class="lv-sub" id="lvAllocation">Funding locked until the dedicated wallet can securely sign and recover funds.</p>',
 '<p class="lv-warning">A Phantom transfer is irreversible. This website cannot debit your Phantom wallet. After funding is unlocked, use Phantom Send, review the destination and amount, and keep an SOL fee reserve. Live trading must be separately authorized.</p></div>',
+'<div class="lv-section"><h3>Live Trading Controls</h3>',
+'<div class="lv-actions"><button id="lvStart" type="button" disabled>Start Live · Locked</button>',
+'<button id="lvStop" type="button" disabled>Stop new trades</button>',
+'<button id="lvEmergency" type="button" disabled>Emergency halt</button>',
+'<button id="lvReconcile" type="button" disabled>Reconcile pending trade</button></div>',
+'<p id="lvStatus" class="lv-info" role="status">Connect Phantom and verify your wallet ownership to inspect the private server.</p>',
+'<h4>Start Live requirements</h4><ul class="lv-sub" id="lvRequirements"><li>Verify Phantom owner to load missing requirements.</li></ul></div>',
 '<div class="lv-section"><div class="lv-top"><div><h3>Live Solana Market Scanner</h3>',
 '<p class="lv-sub">Observes real Solana market data and security screens. It does not simulate trades or move funds.</p></div>',
 '<button id="lvScanRefresh" type="button" disabled>Refresh scan</button></div>',
@@ -191,8 +192,11 @@ function draw(){
  $("lvScanRefresh").disabled=busy||!loggedIn();
  $("lvCopy").disabled=busy||!validWallet(ownerAddress);
  $("lvCopyBot").disabled=busy||!fundReady||!$("lvConfirmDeposit").checked;
- $("lvDepositAddress").textContent=loggedIn()&&validWallet(serverStatus?.privateBotWallet)?
-   serverStatus.privateBotWallet:"Verify owner to view public bot wallet address";
+ $("lvDepositAddress").textContent=loggedIn()&&fundReady&&$("lvConfirmDeposit").checked&&
+   validWallet(serverStatus?.privateBotWallet)?
+   serverStatus.privateBotWallet:
+   loggedIn()&&validWallet(serverStatus?.privateBotWallet)?
+     shorten(serverStatus.privateBotWallet)+" (funding locked)":"Verify owner to inspect deposit readiness";
  $("lvFundingStatus").textContent=!loggedIn()?"Connect and verify Phantom to check readiness.":
    fundReady?"Funding checks passed. Independently review your backup, destination, and transfer amount.":
    "FUNDING LOCKED — the bot wallet is not yet safely configured to receive SOL.";
