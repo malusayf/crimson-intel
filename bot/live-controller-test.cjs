@@ -14,6 +14,15 @@ async function run(){
   const control=new LiveController({env,scanner,log:()=>{}});
   assert.equal(control.status().liveTrading,false);
   assert.equal(control.status().liveExecutorReady,false);
+  const funding=control.fundingStatus();
+  assert.equal(funding.mode,"FUNDING_CHECK_ONLY");
+  assert.equal(funding.readyToFund,false,"Public deposit address cannot authorize a deposit");
+  assert.equal(funding.checks.address,true);
+  assert.equal(funding.checks.signer,false);
+  assert(funding.blockedBy.includes("Dedicated wallet signing custody not connected"));
+  assert(funding.blockedBy.includes("Independent encrypted wallet backup and recovery not verified"));
+  assert(funding.neverFundsAutomatically);
+
   assert.throws(()=>control.start(),/Cannot start live/);
   assert.equal(control.stop().liveTrading,false);
   const empty=await control.portfolio();
