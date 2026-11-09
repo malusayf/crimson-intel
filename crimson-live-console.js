@@ -324,11 +324,17 @@ function drawLedger(){
 }
 async function refreshAll(){
  if(!loggedIn())throw Error("Verify the Phantom owner signature again.");
- const [statusResult,balanceResult,tradeResult,scanResult,botBalanceResult,portfolioResult]=await Promise.allSettled([
-   api("/status"),api("/wallet/owner-sol-balance"),api("/live/trades"),api("/live/scans"),api("/wallet/bot-sol-balance"),api("/live/portfolio")
+ const [statusResult,balanceResult,tradeResult,scanResult,botBalanceResult,portfolioResult,fundingResult]=await Promise.allSettled([
+   api("/status"),api("/wallet/owner-sol-balance"),api("/live/trades"),api("/live/scans"),api("/wallet/bot-sol-balance"),api("/live/portfolio"),api("/funding/readiness")
  ]);
  if(statusResult.status!=="fulfilled")throw statusResult.reason;
  serverStatus=statusResult.value;
+ funding=fundingResult.status==="fulfilled"&&
+   fundingResult.value.mode==="FUNDING_CHECK_ONLY"&&
+   fundingResult.value.network==="solana-mainnet"&&
+   fundingResult.value.wallet===serverStatus.privateBotWallet&&
+   typeof fundingResult.value.readyToFund==="boolean"?
+   fundingResult.value:null;
  if(serverStatus.liveTrading===true&&!serverStatus.privateBotWallet)
    throw Error("Live backend reports no dedicated wallet; investigate before continuing");
  if(balanceResult.status==="fulfilled"&&
@@ -355,7 +361,8 @@ $("lvConnect").addEventListener("click",async()=>{
   const result=await provider.connect();
   const address=String(result?.publicKey||provider.publicKey||"");
   if(!validWallet(address))throw Error("Phantom did not provide a valid Solana wallet address");
-  ownerAddress=address;token="";expiresAt=0;serverStatus=null;ledger=null;scan=null;portfolio=null;seenSignatures=null;notifyEnabled=false;solBalance=null;botBalance=null;
+  ownerAddress=address;token="";expiresAt=0;serverStatus=null;ledger=null;scan=null;portfolio=null;funding=null;seenSignatures=null;notifyEnabled=false;solBalance=null;botBalance=null;
+   $("lvConfirmDeposit").checked=false;
   setMsg("Connected to Phantom "+address+". Click Verify owner to authenticate the private trading server. No money moved.");
  }catch(e){setMsg("Phantom connection failed: "+String(e.message).slice(0,190));}
  finally{busy=false;draw();}
@@ -441,7 +448,11 @@ $("lvCopy").addEventListener("click",async()=>{
 });
 $("lvCopyBot").addEventListener("click",async()=>{
  const wallet=serverStatus?.privateBotWallet;
- if(!serverStatus?.walletReady||!validWallet(wallet))return;
+ if(!loggedIn()||funding?.readyToFund!==true||funding.wallet!==wallet||
+   !validWallet(wallet)||!$("lvConfirmDeposit").checked){
+   setMsg("Funding locked. Complete the recovery, signer and pilot reviews before transferring SOL.");
+   return;
+ }
  try{await navigator.clipboard.writeText(wallet);
    setMsg("Dedicated bot deposit address copied. Verify this address in your trusted wallet setup before sending funds.");}
  catch(e){setMsg("BOT PUBLIC DEPOSIT ADDRESS: "+wallet);}
@@ -454,6 +465,7 @@ $("lvReconcile").addEventListener("click",async()=>{
  catch(e){setMsg("Pending trade remains locked: "+e.message);}
  finally{busy=false;draw();}
 });
+$("lvConfirmDeposit").addEventListener("change",draw);
 $("lvPreview").addEventListener("click",()=>{
  const raw=$("lvAllocate").value.trim(),amount=Number(raw);
  if(!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,9})?$/.test(raw)||
@@ -465,9 +477,9 @@ $("lvPreview").addEventListener("click",()=>{
  $("lvAllocation").textContent=
    "Preview: "+amount.toFixed(6)+" SOL from Phantom, leaving approx. "+
    (solBalance-amount).toFixed(6)+" SOL before fees. "+
-   (serverStatus?.walletReady&&serverStatus?.recoveryVerified?
-      "Use Copy bot deposit address, verify the destination independently, then use Phantom Send. No transfer is initiated here.":
-      "Do NOT send until the dedicated wallet and its recovery are configured and verified.");
+   (funding?.readyToFund===true?
+      "After reviewing the recovery acknowledgement, copy the address and use Phantom Send. No automatic transfer occurs here.":
+      "DO NOT SEND. Funding is locked; this is a preview only.");
 });
 $("lvStart").addEventListener("click",async()=>{
  if(busy||!ready()||serverStatus?.liveTrading===true)return;
