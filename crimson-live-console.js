@@ -162,6 +162,8 @@ function draw(){
  $("lvBalance").textContent=Number.isFinite(solBalance)?
    solBalance.toLocaleString("en-US",{maximumFractionDigits:9})+" SOL":"—";
  const canTrade=ready();
+ const fundReady=loggedIn()&&funding?.readyToFund===true&&
+   validWallet(funding.wallet)&&funding.wallet===serverStatus?.privateBotWallet;
  const active=serverStatus?.liveTrading===true;
  const pending=serverStatus?.pendingIntent===true;
  $("lvHeadline").textContent=active?
@@ -188,7 +190,32 @@ function draw(){
  $("lvJournalRefresh").disabled=busy||!loggedIn();
  $("lvScanRefresh").disabled=busy||!loggedIn();
  $("lvCopy").disabled=busy||!validWallet(ownerAddress);
- $("lvCopyBot").disabled=busy||!loggedIn()||!serverStatus?.walletReady||!validWallet(serverStatus.privateBotWallet);
+ $("lvCopyBot").disabled=busy||!fundReady||!$("lvConfirmDeposit").checked;
+ $("lvDepositAddress").textContent=loggedIn()&&validWallet(serverStatus?.privateBotWallet)?
+   serverStatus.privateBotWallet:"Verify owner to view public bot wallet address";
+ $("lvFundingStatus").textContent=!loggedIn()?"Connect and verify Phantom to check readiness.":
+   fundReady?"Funding checks passed. Independently review your backup, destination, and transfer amount.":
+   "FUNDING LOCKED — the bot wallet is not yet safely configured to receive SOL.";
+ const checks=$("lvFundingChecks");checks.replaceChildren();
+ if(funding?.mode==="FUNDING_CHECK_ONLY"&&loggedIn()){
+   for(const [label,passed] of [
+     ["Dedicated wallet address saved",funding.checks?.address],
+     ["Signer matched to wallet address",funding.checks?.signer],
+     ["Recovery and backup verified",funding.checks?.recovery],
+     ["Jupiter and Solana RPC configured",funding.checks?.provider],
+     ["Real-money pilot safety review approved",funding.checks?.pilotApproved]
+   ]){const li=document.createElement("li");li.textContent=(passed?"✓ ":"✕ ")+label;checks.append(li);}
+   const listed=new Set([
+     "Dedicated wallet signing custody not connected",
+     "Independent encrypted wallet backup and recovery not verified",
+     "Jupiter swap execution provider not configured",
+     "Private Solana RPC not configured",
+     "Small real-money pilot and signing/exit safety review not approved"
+   ]);
+   for(const blocker of funding.blockedBy||[])if(!listed.has(blocker)){
+     const li=document.createElement("li");li.textContent="✕ "+blocker;checks.append(li);
+   }
+ }else{const li=document.createElement("li");li.textContent="Verify Phantom to see funding checks.";checks.append(li);}
  $("lvPreview").disabled=busy||!loggedIn()||!Number.isFinite(solBalance);
  $("lvExport").disabled=busy||!loggedIn()||!(ledger?.entries>0);
  $("lvStart").disabled=busy||!canTrade||active;
