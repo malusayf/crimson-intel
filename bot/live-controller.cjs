@@ -79,6 +79,41 @@ class LiveController{
    this.signer=k;return k;
   }finally{seed.fill(0);}
  }
+ fundingStatus(){
+  const r=this.requirements(),need=[];
+  // Funding is NOT the same as knowing a public address. A funded wallet
+  // without a matched, recoverable signer may strand funds indefinitely.
+  for(const [missing,label] of [
+    ["Distinct BOT_DEDICATED_WALLET_ADDRESS","Valid bot deposit address distinct from your Phantom wallet"],
+    ["BOT_SIGNER_SEED_BASE64 (32-byte dedicated wallet seed)","Dedicated wallet signing custody not connected"],
+    ["Signer/address verification failed","Signer does not cryptographically match the deposit address"],
+    ["BOT_RECOVERY_VERIFIED","Independent encrypted wallet backup and recovery not verified"],
+    ["JUPITER_API_KEY","Jupiter swap execution provider not configured"],
+    ["Private SOLANA_RPC_URL","Private Solana RPC not configured"],
+    ["Persistent BOT_DATA_DIR","Durable transaction journal unavailable"],
+    ["Persistent state integrity","Saved trade state requires review"],
+    ["Conservative live risk limits","Risk limits need verification"],
+    ["Phantom owner authentication","Phantom owner access not configured"],
+    ["Unresolved on-chain trade intent","An unresolved on-chain order must be reconciled"]
+  ])if(r.missing.includes(missing))need.push(label);
+  // The pilot approval is a separate real-money safety gate. Funding can
+  // happen while execution remains off, but not before pilot review.
+  if(r.missing.includes("BOT_LIVE_PILOT_APPROVED"))
+    need.push("Small real-money pilot and signing/exit safety review not approved");
+  return {
+    mode:"FUNDING_CHECK_ONLY",network:"solana-mainnet",
+    wallet:r.wallet,readyToFund:need.length===0&&!!r.wallet,
+    checks:{address:!!r.wallet,signer:r.signerConfigured&&
+      !r.missing.includes("Signer/address verification failed"),
+      recovery:r.recoveryVerified,
+      provider:!r.missing.includes("JUPITER_API_KEY")&&
+        !r.missing.includes("Private SOLANA_RPC_URL"),
+      pilotApproved:!r.missing.includes("BOT_LIVE_PILOT_APPROVED")},
+    blockedBy:need,
+    neverFundsAutomatically:true,
+    note:"Readiness permits a separately approved manual Phantom transfer. It does not start or authorize the bot, prove profitability, or guarantee execution or exit."
+  };
+ }
  status(){
   const r=this.requirements();return {
    walletReady:r.signerConfigured&&!!r.wallet&&!r.missing.includes('Signer/address verification failed'),liveExecutorReady:r.ready,
