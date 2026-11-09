@@ -67,12 +67,18 @@ node.innerHTML=[
 '<button id="lvReconcile" type="button" disabled>Reconcile pending trade</button></div>',
 '<p id="lvStatus" class="lv-info" role="status">Connect Phantom and verify your wallet ownership to inspect the private server.</p>',
 '<h4>Start Live requirements</h4><ul class="lv-sub" id="lvRequirements"><li>Verify Phantom owner to load missing requirements.</li></ul></div>',
-'<div class="lv-section"><h3>Fund Bot From Phantom</h3>',
+'<div class="lv-section"><h3>Fund Bot · Simple Setup</h3>',
+'<p class="lv-sub">This guided screen confirms signer, recovery, provider and pilot safety before permitting you to copy a deposit address. No secrets or wallet passwords go into this website.</p>',
+'<p class="lv-info" id="lvFundingStatus">Connect Phantom to check deposit safety.</p>',
+'<ul class="lv-sub" id="lvFundingChecks"><li>Owner verification required.</li></ul>',
+'<p class="lv-sub">PUBLIC bot wallet address: <strong id="lvDepositAddress">Not verified</strong></p>',
 '<p class="lv-sub">Choose an allocation from your existing SOL. The selected amount is only a preview; no funding or transaction authorization occurs here.</p>',
 '<div class="lv-amount"><label>Proposed amount (SOL)<input type="number" id="lvAllocate" min="0" step="0.000001" placeholder="0.1"></label>',
 '<button id="lvPreview" type="button" disabled>Preview allocation</button>',
 '</div>',
-'<p class="lv-sub" id="lvAllocation">Once the dedicated wallet and its recovery have been verified, copy its deposit address and send a small amount of SOL using Phantom’s normal Send screen. No private keys or seed phrases belong on this website.</p></div>',
+'<label class="lv-sub" style="display:block;margin:12px 0"><input id="lvConfirmDeposit" type="checkbox" style="width:auto;margin-right:7px">I backed up and independently tested recovery of this exact dedicated wallet and checked its address.</label>',
+'<p class="lv-sub" id="lvAllocation">Funding locked until the dedicated wallet can securely sign and recover funds.</p>',
+'<p class="lv-warning">A Phantom transfer is irreversible. This website cannot debit your Phantom wallet. After funding is unlocked, use Phantom Send, review the destination and amount, and keep an SOL fee reserve. Live trading must be separately authorized.</p></div>',
 '<div class="lv-section"><div class="lv-top"><div><h3>Live Solana Market Scanner</h3>',
 '<p class="lv-sub">Observes real Solana market data and security screens. It does not simulate trades or move funds.</p></div>',
 '<button id="lvScanRefresh" type="button" disabled>Refresh scan</button></div>',
@@ -108,7 +114,7 @@ node.innerHTML=[
 const existing=document.getElementById("ccCommandCenter");
 if(existing)existing.insertAdjacentElement("afterend",node);else main.append(node);
 let provider=null,ownerAddress="",serverStatus=null,token="",expiresAt=0,
-  solBalance=null,botBalance=null,ledger=null,scan=null,portfolio=null,busy=false,lastPoll=0,
+  solBalance=null,botBalance=null,ledger=null,scan=null,portfolio=null,funding=null,busy=false,lastPoll=0,
   notifyEnabled=false,seenSignatures=null;
 const shorten=x=>x?x.slice(0,6)+"…"+x.slice(-6):"—";
 const validWallet=x=>typeof x==="string"&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(x);
@@ -135,7 +141,8 @@ async function api(path,method="GET",body=null,auth=true){
  }finally{clearTimeout(timeout);}
 }
 function reset(reason){
-  token="";expiresAt=0;ownerAddress="";serverStatus=null;ledger=null;portfolio=null;seenSignatures=null;solBalance=null;botBalance=null;scan=null;provider=null;
+  token="";expiresAt=0;ownerAddress="";serverStatus=null;ledger=null;portfolio=null;funding=null;seenSignatures=null;solBalance=null;botBalance=null;scan=null;provider=null;
+   $("lvConfirmDeposit").checked=false;
   $("lvAllocation").textContent="Funding authorization reset; no funds moved.";
   setMsg(reason||"Disconnected. No live trading authorization.");
   draw();drawLedger();drawScan();drawPortfolio();
