@@ -233,6 +233,9 @@ const server=http.createServer(async(req,res)=>{
   }
   if(!auth(req))return send(res,401,{error:"Owner authentication required"});
   if(url.pathname==="/status"&&req.method==="GET")return send(res,200,capability());
+  if(url.pathname==="/funding/readiness"&&req.method==="GET")
+    return send(res,200,liveController.fundingStatus());
+
   if(url.pathname==="/live/scans"&&req.method==="GET"){
     return send(res,200,marketScanner?marketScanner.status():{
       mode:"LIVE_MARKET_RESEARCH_ONLY",enabled:false,scanning:false,
