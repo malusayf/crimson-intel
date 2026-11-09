@@ -65,6 +65,8 @@ async function test(){
    const publicBadToken=await req("/robinhood/token?address=javascript:unsafe");assert.equal(publicBadToken.status,400);
    const noSession=await req("/status");assert.equal(noSession.status,401);
    const noPortfolio=await req("/live/portfolio");assert.equal(noPortfolio.status,401,"Portfolio requires owner authentication");
+   const noFunding=await req("/funding/readiness");
+   assert.equal(noFunding.status,401,"Funding readiness should not reveal owner wallet to the public");
    const noJournalSession=await req("/live/trades");assert.equal(noJournalSession.status,401);
    const noJournalCsv=await req("/live/trades.csv");assert.equal(noJournalCsv.status,401);
    const noStart=await req("/start","POST",{});assert.equal(noStart.status,401);
@@ -83,6 +85,12 @@ async function test(){
    assert.equal(replay.status,401);
    const verified=await req("/status","GET",null,ownerSession);
    assert.equal(verified.status,200);
+   const funding=await req("/funding/readiness","GET",null,ownerSession);
+   assert.equal(funding.status,200);
+   assert.equal(funding.data.mode,"FUNDING_CHECK_ONLY");
+   assert.equal(funding.data.readyToFund,false);
+   assert.equal(funding.data.checks.signer,false);
+   assert.equal(funding.data.neverFundsAutomatically,true);
    assert.equal(verified.data.walletReady,false);
    const portfolio=await req("/live/portfolio","GET",null,ownerSession);
    assert.equal(portfolio.status,200);
