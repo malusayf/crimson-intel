@@ -132,5 +132,43 @@ function analyze(bars,higher,baseTF){
    atr:s.atr[i],close:bars[i].c,barClosedAt:bars[i].t+base.ms,plan,
    bars:bars.length,higherBars:higher.length};
 }
-window.CrimsonPSMEngine=Object.freeze({TF,parse,apiUrl,analyze});
+function preview(bars,higher,baseTF){
+ const htf=TF[baseTF]?.htf;
+ const result={
+  ready:bars.length>=80&&higher.length>=60,requiredBars:80,requiredHigher:60,
+  bars:bars.length,higherBars:higher.length,
+  baseTF,htf,bias:"NOT CONFIRMED",higherBias:"NOT CONFIRMED",
+  haBias:"UNAVAILABLE",macdBias:"UNAVAILABLE",
+  fast:NaN,slow:NaN,rsi:NaN,atr:NaN,macd:NaN,hist:NaN,close:NaN,
+  barClosedAt:NaN,plan:null
+ };
+ if(bars.length){
+  const i=bars.length-1,x=indicators(bars);
+  result.close=bars[i].c;result.barClosedAt=bars[i].t+TF[baseTF].ms;
+  result.fast=bars.length>=21?x.fast[i]:NaN;
+  result.slow=bars.length>=55?x.slow[i]:NaN;
+  result.rsi=bars.length>=15?x.rsi[i]:NaN;
+  result.atr=bars.length>=14?x.atr[i]:NaN;
+  result.macd=bars.length>=35?x.macd[i]:NaN;
+  result.hist=bars.length>=35?x.hist[i]:NaN;
+  if(bars.length>=2){
+   result.haBias=x.ha[i]===x.ha[i-1]?direction(x.ha[i]):"MIXED";
+  }
+  if(bars.length>=35){
+   result.macdBias=x.macd[i]>x.signal[i]&&x.hist[i]>0?"BULLISH":
+      x.macd[i]<x.signal[i]&&x.hist[i]<0?"BEARISH":"MIXED";
+  }
+  if(bars.length>=55&&Number.isFinite(result.rsi)){
+   result.bias=x.fast[i]>x.slow[i]&&bars[i].c>x.slow[i]&&result.rsi>=52?
+      "BULLISH":x.fast[i]<x.slow[i]&&bars[i].c<x.slow[i]&&result.rsi<=48?
+      "BEARISH":"MIXED";
+  }
+ }
+ if(higher.length>=55){
+  const j=higher.length-1,hi=indicators(higher),c=higher[j].c;
+  result.higherBias=c>hi.slow[j]?"BULLISH":c<hi.slow[j]?"BEARISH":"MIXED";
+ }
+ return result;
+}
+window.CrimsonPSMEngine=Object.freeze({TF,parse,apiUrl,analyze,preview});
 })();
