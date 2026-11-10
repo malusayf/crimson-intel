@@ -20,6 +20,16 @@ Shows:
 
 The core is `crimson-psm-engine.js` and the UI is `crimson-psm-panel.js`. These two files are only imported into `index.html`; no other existing market analysis module is changed.
 
+## Young-token / short-history fallback (November 10 update)
+The user observed `Not enough completed pool bars for 55 EMA and confirmed swing structure` on a 15-minute DEX chart. This is a successfully parsed candle response with **insufficient historical depth**, not evidence of a failed JavaScript runtime or necessarily an API/CORS error.
+
+- The Chart TF selector now defaults to **Auto · best confirmed TF**, attempting `15m/1h`, then `5m/15m`, then `1m/5m`. Completed candles from overlapping intervals are reused within one refresh. This costs up to four GeckoTerminal candle calls in the normal full fallback and is throttled to approximately once per 90 seconds per unchanged pool/TF combination.
+- PSM's strict minimum of **80 completed local chart bars and 60 completed higher-timeframe bars** remains unchanged. At minimum, 15m/1h needs about 60 hours of higher-TF data; 5m/15m about 15 hours; 1m/5m about 5 hours, *assuming each interval has data*.
+- If no candidate satisfies both requirements, the panel displays the available **preliminary** 21/55 EMA, RSI, HA, MACD and recent close (only where their own input history is sufficient), with the **actual count** of completed chart and higher-TF candles. It explicitly shows `WAIT · INSUFFICIENT DATA` and blanks Entry/SL/TP. It does **not** loosen the original v5.3 trade-signal gates or invent 1h candles.
+- The user can manually override and choose 1m, 5m, 15m, 1h or 4h. `1d` remains unsupported because the public candle source lacks a compatible higher timeframe for the original script's stricter higher-TF check.
+- The public provider is rate-limited and may not provide candle data for every chain/pool. Absence of candles is not a signal. Browser-level verification with the exact user's pool is still pending.
+- Updated script imports are cache-busted to `v=20261110-psm-dex-v2`. On the website, hard refresh if necessary.
+
 ## Safety and caveats
 
 This is a JavaScript adaptation of the **Trading mode** of the v5.3 rules, not a byte-for-byte Pine clone or verified TradingView backtest. Swing pivot tie behavior, history-window warm-up and vendor candle construction can differ from TradingView. EMA/RSI/ATR/MACD are based on standard USD pool candles rather than Heikin Ashi prices (even if the DEX Screener iframe displays HA candles). Only **completed candles** are used. For v5.3 stop rules, long SL is the lower of prior-35-bar low and 1.5 ATR below entry, short SL is the higher of prior-35-bar high and 1.5 ATR above entry; max accepted initial risk is 6 ATR. A confirmed higher-timeframe EMA filter is required.
