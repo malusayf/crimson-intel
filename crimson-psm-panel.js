@@ -36,11 +36,13 @@ panel.innerHTML=[
  '<div class="pd-flex"><div><h3>📈 PSM Fusion · DEX Research <small style="font-size:11px;color:#f0a6cb">BETA</small></h3>',
  '<p>Separate read-only analysis beside your DEX chart. Your TradingView v5.3 remains unchanged.</p></div>',
  '<div class="pd-controls"><label for="pdTime">Chart TF</label><select id="pdTime">',
+ '<option value="auto" selected>Auto · best confirmed TF</option>',
  '<option value="1m">1 minute</option><option value="5m">5 minutes</option>',
- '<option value="15m" selected>15 minutes</option><option value="1h">1 hour</option>',
+ '<option value="15m">15 minutes</option><option value="1h">1 hour</option>',
  '<option value="4h">4 hours</option><option value="1d">1 day (HTF unavailable)</option>',
  '</select><button id="pdReload" type="button">Refresh candles</button></div></div>',
  '<p id="pdStatus" role="status" aria-live="polite">Track a token to load confirmed candles.</p>',
+ '<p id="pdActive" style="font-size:11px;color:#ffc3da">AUTO chooses 15m, 5m, then 1m based on completed history; no invented bars.</p>',
  '<div class="pd-grid">',
  '<div class="pd-tile"><small>PSM trend + RSI</small><strong id="pdBias">—</strong><p id="pdRsi">—</p></div>',
  '<div class="pd-tile"><small>EMA 21 / EMA 55</small><strong id="pdEma">—</strong></div>',
@@ -84,6 +86,7 @@ function clear(message){
  set("pdTradeNote","No verified entry or trade plan is available.");
  set("pdConfirm","HA and MACD observations do not change the original PSM breakout rule.");
  set("pdStatus",message);
+ set("pdActive","No valid pool/timeframe selected.");
 }
 function flow(snap){
  const p=snap?.pair;
@@ -127,6 +130,27 @@ function render(data,snap,tf){
    (mismatch?" · WARNING: live pool quote differs >20% from last candle close":"")+
    " · provider may lag; signal levels are historical.");
 }
+function renderPreview(data,snap,tf,extra){
+  set("pdBias",data.bias);tone("pdBias",data.bias);
+  set("pdRsi","RSI 14: "+(finite(data.rsi)?data.rsi.toFixed(1):"—"));
+  set("pdEma",format(data.fast)+" / "+format(data.slow));
+  set("pdHigher",engine.TF[tf].htf+": "+data.higherBias);
+  tone("pdHigher",data.higherBias);
+  set("pdHa",data.haBias);tone("pdHa",data.haBias);
+  set("pdMacd",data.macdBias);tone("pdMacd",data.macdBias);
+  set("pdHist","Histogram: "+(finite(data.hist)?data.hist.toPrecision(4):"—"));
+  set("pdClose",format(data.close));
+  set("pdTrade","WAIT · INSUFFICIENT DATA");
+  for(const id of ["pdEntry","pdSL","pdTP1","pdTP2","pdTP3"])set(id,"—");
+  set("pdTradeNote","NO PSM SIGNAL: "+data.bars+"/"+data.requiredBars+" completed "+tf+
+    " bars and "+data.higherBars+"/"+data.requiredHigher+" confirmed "+engine.TF[tf].htf+
+    " bars. Waiting for a fully established 55 EMA and swing history.");
+  set("pdConfirm","Early-token HA, MACD, EMA and RSI values are preliminary observations only; no entry, SL or TP issued.");
+  set("pdStatus","Early-token research · "+tf+" chart has "+data.bars+
+    "/80 bars; "+engine.TF[tf].htf+" higher TF has "+data.higherBars+
+    "/60 bars · last completed "+stamp(data.barClosedAt)+". "+(extra||""));
+  set("pdActive","EARLY TOKEN / WAIT: PSM entry rules need 80 completed chart bars and 60 completed higher-timeframe bars.");
+}
 function abort(){state.controller?.abort();state.controller=null;}
 async function fetchBars(url,controller){
  const response=await fetch(url,{signal:controller.signal,cache:"no-store",credentials:"omit"});
@@ -134,44 +158,86 @@ async function fetchBars(url,controller){
  return response.json();
 }
 async function update(force){
- const snap=state.snap,p=snap?.pair,tf=$("pdTime").value,spec=engine.TF[tf];
+ const snap=state.snap,p=snap?.pair,selection=$("pdTime").value;
+ const auto=selection==="auto";
+ const requested=auto?["15m","5m","1m"]:[selection];
  if(!p)return;
  flow(snap);
- if(!spec?.htf){abort();clear("Daily OHLCV has no supported higher TF in this provider. Choose 4h or lower.");flow(snap);return;}
+ if(!auto&&!engine.TF[selection]?.htf){
+  abort();clear("Daily OHLCV has no supported higher TF. Choose Auto or 4h and lower.");flow(snap);return;
+ }
  if(p.priceType==="issuer-reference"||!p.pairAddress){
   abort();clear("Issuer prices are NOT DEX pool candle data. Track a real DEX pool.");flow(snap);return;
  }
- if(p.dataStale){abort();clear("Tracked pool quote is stale. No PSM signal until its snapshot refreshes.");flow(snap);return;}
- if(String(p.baseToken?.address||"").toLowerCase()!==String(snap.mint||"").toLowerCase()){
-  abort();clear("Pool base token does not match tracked contract. Analysis blocked.");flow(snap);return;
+ if(p.dataStale){
+  abort();clear("Tracked pool quote is stale. No PSM signal until the quote refreshes.");flow(snap);return;
  }
- const key=[snap.chainId,p.pairAddress,snap.mint,tf].join("|");
+ if(String(p.baseToken?.address||"").toLowerCase()!==String(snap.mint||"").toLowerCase()){
+  abort();clear("Pool base token does not match the tracked contract. Analysis blocked.");flow(snap);return;
+ }
+ const key=[snap.chainId,p.pairAddress,snap.mint,selection].join("|");
  if(!force&&state.key===key&&Date.now()-state.requestedAt<90000)return;
  abort();
- const ctl=new AbortController();state.controller=ctl;
- state.key=key;state.requestedAt=Date.now();
- set("pdStatus","Loading confirmed OHLCV "+tf+" and "+spec.htf+" from GeckoTerminal…");
- const timer=setTimeout(()=>ctl.abort(),20000);
- try{
-  const [a,b]=await Promise.all([
-   fetchBars(engine.apiUrl(snap.chainId,p.pairAddress,snap.mint,tf),ctl),
-   fetchBars(engine.apiUrl(snap.chainId,p.pairAddress,snap.mint,spec.htf),ctl)
-  ]);
-  if(state.controller!==ctl||state.snap?.mint!==snap.mint||
-    state.snap?.pair?.pairAddress!==p.pairAddress||$("pdTime").value!==tf)return;
-  const now=Date.now(),bars=engine.parse(a,tf,now),higher=engine.parse(b,spec.htf,now);
-  const last=bars[bars.length-1],lastHigher=higher[higher.length-1];
-  if(!last||now-(last.t+spec.ms)>Math.max(3*spec.ms,600000))
-   throw Error("Price candles are stale for this pool and timeframe");
-  if(!lastHigher||now-(lastHigher.t+engine.TF[spec.htf].ms)>3*engine.TF[spec.htf].ms)
-   throw Error("Higher-timeframe candles are stale");
-  render(engine.analyze(bars,higher,tf),snap,tf);
+ const ctl=new AbortController();
+ state.controller=ctl;state.key=key;state.requestedAt=Date.now();
+ set("pdStatus",auto?"Finding a timeframe with enough confirmed pool candles…":
+  "Loading confirmed "+selection+" and "+engine.TF[selection].htf+" OHLCV candles…");
+ const timer=setTimeout(()=>ctl.abort(),24000);
+ const dataCache=new Map();
+ async function getTimeframe(tf){
+  if(!dataCache.has(tf)){
+   const url=engine.apiUrl(snap.chainId,p.pairAddress,snap.mint,tf);
+   dataCache.set(tf,fetchBars(url,ctl).then(raw=>engine.parse(raw,tf,Date.now())));
+  }
+  return dataCache.get(tf);
+ }
+ let best=null;
+ try {
+  for(const tf of requested){
+   const higherTf=engine.TF[tf].htf;
+   // AUTO caches overlapping higher-timeframe candles: at most 4 HTTP
+   // requests for 15m/1h, 5m/15m and 1m/5m, not 6.
+   const [bars,higher]=await Promise.all([getTimeframe(tf),getTimeframe(higherTf)]);
+   if(state.controller!==ctl||state.snap?.mint!==snap.mint||
+     state.snap?.pair?.pairAddress!==p.pairAddress||$("pdTime").value!==selection)return;
+   const now=Date.now(),last=bars[bars.length-1],lastHigher=higher[higher.length-1];
+   const spec=engine.TF[tf],htfSpec=engine.TF[higherTf];
+   const fresh=!!last&&now-(last.t+spec.ms)<=Math.max(3*spec.ms,600000);
+   const higherFresh=!!lastHigher&&now-(lastHigher.t+htfSpec.ms)<=Math.max(3*htfSpec.ms,600000);
+   const preview=engine.preview(bars,higher,tf);
+   const progress=Math.min(1,bars.length/80)*0.6+Math.min(1,higher.length/60)*0.4;
+   if(fresh&&(!best||progress>best.progress))
+     best={tf,preview,progress,higherFresh};
+   if(preview.ready&&fresh&&higherFresh){
+     const result=engine.analyze(bars,higher,tf);
+     render(result,snap,tf);
+     set("pdActive",(auto?"AUTO selected ":"Manual ")+tf+
+       " with confirmed "+higherTf+" trend · "+bars.length+
+       "/80 chart bars and "+higher.length+"/60 higher bars. PSM levels are reference only.");
+     return;
+   }
+   if(!auto)break;
+  }
+  if(best){
+   renderPreview(best.preview,snap,best.tf,
+     best.higherFresh?"No full v5.3 trade signal yet.":
+      "Higher timeframe data is not recent enough for a trade signal.");
+   if(auto)set("pdActive","AUTO: best available provisional timeframe "+best.tf+
+     ". Waiting for 80 chart candles and 60 higher-timeframe candles before issuing a PSM plan.");
+  }else{
+   clear("The pool has no recent completed candles for the selected timeframe(s). No signal generated.");
+   flow(state.snap);
+  }
  }catch(err){
   if(state.controller!==ctl)return;
-  clear("PSM data unavailable: "+(err?.name==="AbortError"?"request timed out":err?.message||"provider failed")+
-    ". No signal inferred. Check API access, rate limits, pool age and browser CORS.");
+  clear("PSM candle request failed: "+(err?.name==="AbortError"?"request timed out":
+    err?.message||"provider unavailable")+
+    ". This is different from insufficient history. Check network, API, CORS and rate limits.");
   flow(state.snap);
- }finally{clearTimeout(timer);if(state.controller===ctl)state.controller=null;}
+ }finally{
+  clearTimeout(timer);
+  if(state.controller===ctl)state.controller=null;
+ }
 }
 function accept(snap){
  if(!snap?.pair)return;
